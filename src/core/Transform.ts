@@ -5,7 +5,6 @@ export class Transform {
   rotation = vec3.create(0, 0, 0); // Euler angles
   scale = vec3.create(1, 1, 1);
 
-  // 缓存矩阵，避免每帧重复 new
   private _modelMatrix = mat4.create();
 
   updateMatrix() {

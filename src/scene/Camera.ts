@@ -1,0 +1,35 @@
+import { mat4, vec3 } from "wgpu-matrix";
+
+export class Camera {
+  position = vec3.create(0, 0, 0);
+  target = vec3.create(0, 0, 0);
+  up = vec3.create(0, 1, 0);
+
+  private _projectionMatrix = mat4.create();
+  private _viewMatrix = mat4.create();
+
+  fov: number = (45 * Math.PI) / 180;
+  aspect: number = 1.0;
+  near: number = 0.1;
+  far: number = 100.0;
+
+  updateMatrix() {
+    mat4.identity(this._viewMatrix);
+    mat4.lookAt(this.position, this.target, this.up, this._viewMatrix);
+    mat4.identity(this._projectionMatrix);
+    mat4.perspective(
+      this.fov,
+      this.aspect,
+      this.near,
+      this.far,
+      this._projectionMatrix,
+    );
+  }
+
+  getViewMatrix() {
+    return this._viewMatrix;
+  }
+  getProjectionMatrix() {
+    return this._projectionMatrix;
+  }
+}

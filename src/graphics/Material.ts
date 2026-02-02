@@ -9,7 +9,7 @@ export class Material {
   label: string;
 
   // 渲染状态配置 (可以根据需要扩展更多配置)
-  cullMode: GPUCullMode = "back";
+  cullMode: GPUCullMode = "none";
   topology: GPUPrimitiveTopology = "triangle-list";
 
   constructor(label: string) {

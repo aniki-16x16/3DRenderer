@@ -3,8 +3,10 @@ import { Transform } from "./core/Transform";
 import { Material } from "./graphics/Material";
 import { Mesh } from "./graphics/Mesh";
 import { Shader } from "./graphics/Shader";
+import { Camera } from "./scene/Camera";
 import basicShaderCode from "./shaders/basic.wgsl?raw";
 import "./style.css";
+import { multiplyMatrices } from "./utils/math";
 
 async function main() {
   let engine: Engine | null = null;
@@ -17,14 +19,19 @@ async function main() {
   engine!.resize();
   window.addEventListener("resize", () => engine!.resize());
 
+  const camera = new Camera();
+  camera.position[2] = 5;
+  camera.updateMatrix();
+  engine!.onResize = (width, height) => {
+    camera.aspect = width / height;
+    camera.updateMatrix();
+  };
+
   const transform = new Transform();
   const mvpBuffer = engine!.device!.createBuffer({
     size: 16 * 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: true,
   });
-  new Float32Array(mvpBuffer.getMappedRange()).set(transform.getMatrix());
-  mvpBuffer.unmap();
   const bindGroupLayout = engine!.device!.createBindGroupLayout({
     entries: [
       {
@@ -73,13 +80,14 @@ async function main() {
   );
 
   engine!.onRender = () => {
-    transform.rotation[2] += 0.01;
+    transform.rotation[1] += 0.01;
     transform.updateMatrix();
-    engine!.device!.queue.writeBuffer(
-      mvpBuffer,
-      0,
-      new Float32Array(transform.getMatrix()),
-    );
+    const mvp = multiplyMatrices([
+      camera.getProjectionMatrix(),
+      camera.getViewMatrix(),
+      transform.getMatrix(),
+    ]);
+    engine!.device!.queue.writeBuffer(mvpBuffer, 0, new Float32Array(mvp));
 
     const textureView = engine!.context!.getCurrentTexture().createView();
     const commandEncoder = engine!.device!.createCommandEncoder();
