@@ -42,7 +42,7 @@ export class Mesh {
     // 假设每个顶点只有 position(3)，后续如果引入标准材质需要改为 STRIDE 计算
     // 暂时简单处理：如果不传索引，则顶点数 = 数据长度 / 3 (假设只有 position)
     // 这是一个临时假设，稍后我们定义 VertexLayout 时会加强这里
-    this.vertexCount = this.vertexData.length;
+    this.vertexCount = this.vertexData.length / 3;
   }
 
   /**

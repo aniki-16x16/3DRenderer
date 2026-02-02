@@ -20,11 +20,12 @@ export class Material {
    * 初始化管线
    * 注意：这里暂时硬编码了 vertexBuffers layout，后续需要根据 Mesh 或者 VertexLayout 类动态生成
    */
-  initialize(device: GPUDevice, format: GPUTextureFormat, shader: Shader) {
-    const pipelineLayout = device.createPipelineLayout({
-      bindGroupLayouts: [], // 暂时没有 Uniform
-    });
-
+  initialize(
+    device: GPUDevice,
+    format: GPUTextureFormat,
+    shader: Shader,
+    pipelineLayout: GPUPipelineLayout,
+  ) {
     this.pipeline = device.createRenderPipeline({
       label: this.label,
       layout: pipelineLayout,

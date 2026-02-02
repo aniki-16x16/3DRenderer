@@ -1,3 +1,7 @@
+struct Uniforms {
+  mvp: mat4x4f,
+}
+
 struct VertextIn {
   @builtin(vertex_index) vertex_index: u32,
   @location(0) position: vec3f,
@@ -8,10 +12,12 @@ struct VertexOut {
   @location(0) color: vec3f,
 }
 
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
 @vertex
 fn vs_main(input: VertextIn) -> VertexOut {
   var output: VertexOut;
-  output.position = vec4f(input.position, 1.0);
+  output.position = uniforms.mvp * vec4f(input.position, 1.0);
   switch (input.vertex_index % 3u) {
     case 0u: {
       output.color = vec3f(1.0, 0.0, 0.0); // Red
