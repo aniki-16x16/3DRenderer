@@ -8,8 +8,9 @@ export class Object3D {
   mesh: Mesh | null = null;
   material: Material | null = null;
 
-  uniformBuffer: GPUBuffer | null = null;
-  bindGroup: GPUBindGroup | null = null;
+  // 1. 模型矩阵资源 (Group 1)
+  modelBuffer: GPUBuffer | null = null;
+  modelBindGroup: GPUBindGroup | null = null;
 
   constructor(name: string, mesh: Mesh, material: Material) {
     this.name = name;

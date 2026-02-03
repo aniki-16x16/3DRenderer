@@ -8,6 +8,7 @@ export class Camera {
 
   private _projectionMatrix = mat4.create();
   private _viewMatrix = mat4.create();
+  private _viewProjectionMatrix = mat4.create();
 
   fov: number = angle2Rad(60);
   aspect: number = 1.0;
@@ -25,6 +26,11 @@ export class Camera {
       this.far,
       this._projectionMatrix,
     );
+    mat4.multiply(
+      this._projectionMatrix,
+      this._viewMatrix,
+      this._viewProjectionMatrix,
+    );
   }
 
   getViewMatrix() {
@@ -32,5 +38,8 @@ export class Camera {
   }
   getProjectionMatrix() {
     return this._projectionMatrix;
+  }
+  getViewProjectionMatrix() {
+    return this._viewProjectionMatrix;
   }
 }

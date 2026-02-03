@@ -1,23 +1,27 @@
 import { Engine } from "../core/Engine";
 import { Scene } from "../scene/Scene";
-import { Camera } from "../scene/Camera";
-import { multiplyMatrices } from "../utils/math";
 import { Object3D } from "../core/Object3D";
 
+// 暴露这两个 Layout，供 Material 使用
+// Group 0: Camera (Frame Level)
+// Group 1: Material (Material Level) -> 由 Material 决定
+// Group 2: Model (Object Level)
 export class ForwardRenderer {
   engine: Engine;
 
-  // 缓存一些通用的 BindGroupLayout，避免重复创建
-  // 目前 MVP 是绑定在 Group 0 的 Binding 0
-  private mvpBindGroupLayout: GPUBindGroupLayout;
+  public cameraBindGroupLayout: GPUBindGroupLayout; // Group 0
+  public modelBindGroupLayout: GPUBindGroupLayout; // Group 2 (was 1)
+
+  private cameraBuffer: GPUBuffer;
+  private cameraBindGroup: GPUBindGroup;
 
   constructor(engine: Engine) {
     this.engine = engine;
+    const device = engine.device!;
 
-    // 创建通用的 Uniform BindGroupLayout (Set 0)
-    // 假设所有 Object 都用同样的 MVP 布局
-    this.mvpBindGroupLayout = engine.device!.createBindGroupLayout({
-      label: "mvp-binding-group-layout",
+    // Group 0: Camera ViewProjection
+    this.cameraBindGroupLayout = device.createBindGroupLayout({
+      label: "camera-bind-group-layout",
       entries: [
         {
           binding: 0,
@@ -26,6 +30,31 @@ export class ForwardRenderer {
         },
       ],
     });
+
+    // Group 2: Model Matrix
+    this.modelBindGroupLayout = device.createBindGroupLayout({
+      label: "model-bind-group-layout",
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: "uniform" },
+        },
+      ],
+    });
+
+    // 初始化全局 Camera 资源
+    this.cameraBuffer = device.createBuffer({
+      label: "GlobalCameraBuffer",
+      size: 64,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.cameraBindGroup = device.createBindGroup({
+      label: "GlobalCameraBindGroup",
+      layout: this.cameraBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer: this.cameraBuffer } }],
+    });
   }
 
   render(scene: Scene) {
@@ -33,18 +62,14 @@ export class ForwardRenderer {
     const context = this.engine.context!;
     const camera = scene.activeCamera;
 
-    if (!camera) {
-      console.warn("No active camera in scene");
-      return;
-    }
+    if (!camera) return;
 
-    // 1. 更新相机的矩阵
+    // 1. 更新全局 Camera Buffer
     camera.updateMatrix();
+    const vpMatrix = camera.getViewProjectionMatrix();
+    device.queue.writeBuffer(this.cameraBuffer, 0, vpMatrix.buffer);
 
-    // 2. 准备 Pass
-    // 这里需要 handle texture 失效的问题，所以每次 render 都要获取
     const textureView = context.getCurrentTexture().createView();
-
     const commandEncoder = device.createCommandEncoder();
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
@@ -55,14 +80,49 @@ export class ForwardRenderer {
           storeOp: "store",
         },
       ],
-      // 稍后这里需要加上 depthStencilAttachment
     };
-
     const pass = commandEncoder.beginRenderPass(renderPassDescriptor);
 
-    // 3. 遍历渲染对象
-    for (const obj of scene.objects) {
-      this.renderObject(device, pass, obj, camera);
+    // 2. 绑定 Group 0 (Frame Level) - 只需一次
+    pass.setBindGroup(0, this.cameraBindGroup);
+
+    // 3. 排序物体 (按 Material ID / Pipeline 排序)
+    // 假设 Material 实例是复用的，这里简单按 Material 对象引用或 ID 排序
+    const sortedObjects = [...scene.objects].sort((a, b) => {
+      if (!a.material || !b.material) return 0;
+      // 这里只是简单的示例，实际可以使用 material.id
+      return a.material.label.localeCompare(b.material.label);
+    });
+
+    // 记录上一次使用的 Pipeline 和 Material BindGroup，避免重复绑定
+    let currentPipeline: GPURenderPipeline | null = null;
+    let currentMaterialGroup: GPUBindGroup | null = null;
+
+    for (const obj of sortedObjects) {
+      if (
+        !obj.mesh ||
+        !obj.material ||
+        !obj.mesh.vertexBuffer ||
+        !obj.material.pipeline
+      ) {
+        continue;
+      }
+
+      // 切换 Pipeline
+      if (currentPipeline !== obj.material.pipeline) {
+        pass.setPipeline(obj.material.pipeline);
+        currentPipeline = obj.material.pipeline;
+      }
+
+      // 绑定 Group 1 (Material Level)
+      // 假设 Material 类有一个 bindGroup 属性
+      const matGroup = obj.material.bindGroup;
+      if (matGroup && currentMaterialGroup !== matGroup) {
+        pass.setBindGroup(1, matGroup);
+        currentMaterialGroup = matGroup;
+      }
+
+      this.renderObject(device, pass, obj);
     }
 
     pass.end();
@@ -73,61 +133,38 @@ export class ForwardRenderer {
     device: GPUDevice,
     pass: GPURenderPassEncoder,
     obj: Object3D,
-    camera: Camera,
   ) {
-    // 简单剔除：如果 Mesh 或 Material 没准备好就不画
-    if (
-      !obj.mesh ||
-      !obj.material ||
-      !obj.mesh.vertexBuffer ||
-      !obj.material.pipeline
-    ) {
-      return;
-    }
-
-    // 1. 获取模型矩阵 (利用 Transform 的脏标记机制，只有变化时才重算)
-    const modelMatrix = obj.transform.getMatrix();
-
-    // 2. 计算 MVP 矩阵
-    // 注意：每一帧 MVP 通常都会变 (因为 Camera 会动)，所以矩阵乘法难以避免
-    // 优化点：可以在 Shader 中分别传 Model 和 ViewProjection，减少 CPU 端乘法
-    // 但作为基础教学，先保持 CPU 端计算 MVP
-    const mvp = multiplyMatrices([
-      camera.getProjectionMatrix(),
-      camera.getViewMatrix(),
-      modelMatrix,
-    ]);
-
-    // 3. 资源初始化 (惰性初始化，仅一次)
-    if (!obj.uniformBuffer) {
-      obj.uniformBuffer = device.createBuffer({
-        label: `UniformBuffer-${obj.name}`,
-        size: 64, // 4x4 matrix * 4 bytes
+    // 惰性初始化/更新 Model Buffer
+    if (!obj.modelBuffer) {
+      obj.modelBuffer = device.createBuffer({
+        label: `ModelBuffer-${obj.name}`,
+        size: 16 * 4,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
     }
 
-    if (!obj.bindGroup) {
-      obj.bindGroup = device.createBindGroup({
-        label: `BindGroup-${obj.name}`,
-        layout: this.mvpBindGroupLayout,
+    // 写入最新 Model Matrix
+    const modelMatrix = obj.transform.getMatrix();
+    device.queue.writeBuffer(obj.modelBuffer, 0, modelMatrix.buffer);
+
+    if (!obj.modelBindGroup) {
+      obj.modelBindGroup = device.createBindGroup({
+        label: `ModelBindGroup-${obj.name}`,
+        layout: this.modelBindGroupLayout,
         entries: [
           {
             binding: 0,
-            resource: { buffer: obj.uniformBuffer },
+            resource: { buffer: obj.modelBuffer },
           },
         ],
       });
     }
 
-    // 4. 更新数据
-    // writeBuffer 的开销比 createBuffer 小得多
-    device.queue.writeBuffer(obj.uniformBuffer, 0, mvp.buffer);
+    // 绑定 Group 2 (Model)
+    pass.setBindGroup(2, obj.modelBindGroup);
 
-    // 5. 绘制指令
-    pass.setPipeline(obj.material.pipeline!);
-    pass.setVertexBuffer(0, obj.mesh.vertexBuffer);
-    pass.setBindGroup(0, obj.bindGroup);
-    pass.draw(obj.mesh.vertexCount, 1, 0, 0);
+    // 绘制
+    pass.setVertexBuffer(0, obj.mesh!.vertexBuffer!);
+    pass.draw(obj.mesh!.vertexCount, 1, 0, 0);
   }
 }

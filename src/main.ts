@@ -22,8 +22,6 @@ async function main() {
 
   // 2. 创建场景组件
   const scene = new Scene();
-
-  // 相机
   const camera = new Camera();
   camera.position[2] = 5;
   scene.activeCamera = camera;
@@ -45,7 +43,6 @@ async function main() {
     0.0, // V2
   ]);
   triangleMesh.initialize(engine.device!);
-
   const basicShader = new Shader(
     engine.device!,
     "basic-shader",
@@ -53,26 +50,12 @@ async function main() {
   );
 
   const basicMaterial = new Material("basic-material");
-
-  // 临时：我们重新创建一个 layout 用于初始化
-  const bindGroupLayout = engine.device!.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: { type: "uniform" },
-      },
-    ],
-  });
-  const pipelineLayout = engine.device!.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout],
-  });
-
   basicMaterial.initialize(
     engine.device!,
     engine.format!,
     basicShader,
-    pipelineLayout,
+    renderer.cameraBindGroupLayout, // Group 0
+    renderer.modelBindGroupLayout, // Group 2
   );
 
   // 4. 创建物体
