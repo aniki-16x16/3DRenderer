@@ -10,3 +10,7 @@ export function multiplyMatrices(
   }
   return result;
 }
+
+export function angle2Rad(angle: number): number {
+  return (angle * Math.PI) / 180;
+}

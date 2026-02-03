@@ -1,65 +1,39 @@
 import { Engine } from "./core/Engine";
-import { Transform } from "./core/Transform";
+import { Object3D } from "./core/Object3D";
 import { Material } from "./graphics/Material";
 import { Mesh } from "./graphics/Mesh";
 import { Shader } from "./graphics/Shader";
+import { ForwardRenderer } from "./renderer/ForwardRenderer";
 import { Camera } from "./scene/Camera";
+import { Scene } from "./scene/Scene";
 import basicShaderCode from "./shaders/basic.wgsl?raw";
 import "./style.css";
-import { multiplyMatrices } from "./utils/math";
 
 async function main() {
+  // 1. 初始化引擎
   let engine: Engine | null = null;
   try {
     engine = new Engine(document.getElementById("canvas") as HTMLCanvasElement);
     await engine.init();
   } catch (error) {
     console.error("Failed to initialize the engine:", error);
+    return;
   }
-  engine!.resize();
-  window.addEventListener("resize", () => engine!.resize());
 
+  // 2. 创建场景组件
+  const scene = new Scene();
+
+  // 相机
   const camera = new Camera();
   camera.position[2] = 5;
-  camera.updateMatrix();
-  engine!.onResize = (width, height) => {
-    camera.aspect = width / height;
-    camera.updateMatrix();
-  };
+  scene.activeCamera = camera;
 
-  const transform = new Transform();
-  const mvpBuffer = engine!.device!.createBuffer({
-    size: 16 * 4,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  const bindGroupLayout = engine!.device!.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: {
-          type: "uniform",
-        },
-      },
-    ],
-  });
-  const bindGroup = engine!.device!.createBindGroup({
-    layout: bindGroupLayout,
-    entries: [
-      {
-        binding: 0,
-        resource: {
-          buffer: mvpBuffer,
-        },
-      },
-    ],
-  });
-  const pipelineLayout = engine!.device!.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout],
-  });
+  // 渲染器
+  const renderer = new ForwardRenderer(engine);
 
+  // 3. 创建资源: Mesh, Shader, Material
   const SQRT_3 = Math.sqrt(3);
-  const mesh = new Mesh([
+  const triangleMesh = new Mesh([
     (-0.5 / 2) * SQRT_3,
     -0.5 / 2,
     0.0, // V0
@@ -70,48 +44,64 @@ async function main() {
     0.5,
     0.0, // V2
   ]);
-  const material = new Material("basic-material");
-  mesh.initialize(engine!.device!);
-  material.initialize(
-    engine!.device!,
-    engine!.format!,
-    new Shader(engine!.device!, "basic-shader", basicShaderCode),
+  triangleMesh.initialize(engine.device!);
+
+  const basicShader = new Shader(
+    engine.device!,
+    "basic-shader",
+    basicShaderCode,
+  );
+
+  const basicMaterial = new Material("basic-material");
+
+  // 临时：我们重新创建一个 layout 用于初始化
+  const bindGroupLayout = engine.device!.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "uniform" },
+      },
+    ],
+  });
+  const pipelineLayout = engine.device!.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout],
+  });
+
+  basicMaterial.initialize(
+    engine.device!,
+    engine.format!,
+    basicShader,
     pipelineLayout,
   );
 
-  engine!.onRender = () => {
-    transform.rotation[1] += 0.01;
-    transform.updateMatrix();
-    const mvp = multiplyMatrices([
-      camera.getProjectionMatrix(),
-      camera.getViewMatrix(),
-      transform.getMatrix(),
-    ]);
-    engine!.device!.queue.writeBuffer(mvpBuffer, 0, new Float32Array(mvp));
+  // 4. 创建物体
+  const triangleActor = new Object3D("Triangle", triangleMesh, basicMaterial);
+  scene.add(triangleActor);
 
-    const textureView = engine!.context!.getCurrentTexture().createView();
-    const commandEncoder = engine!.device!.createCommandEncoder();
-    const renderPassDescriptor: GPURenderPassDescriptor = {
-      colorAttachments: [
-        {
-          view: textureView,
-          clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-    };
+  // 5. 事件处理
+  engine.resize();
+  window.addEventListener("resize", () => {
+    engine!.resize();
+  });
 
-    const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-    renderPass.setPipeline(material.pipeline!);
-    renderPass.setVertexBuffer(0, mesh.vertexBuffer!);
-    renderPass.setBindGroup(0, bindGroup);
-    renderPass.draw(3, 1, 0, 0);
-    renderPass.end();
-
-    engine!.device!.queue.submit([commandEncoder.finish()]);
+  engine.onResize = (width, height) => {
+    camera.aspect = width / height;
   };
-  engine!.start();
+
+  // 6. 渲染循环
+  engine.onRender = () => {
+    // 旋转三角形
+    const rotation = triangleActor.transform.rotation;
+    triangleActor.transform.setRotation(
+      rotation[0],
+      rotation[1],
+      rotation[2] + 0.01,
+    );
+    renderer.render(scene);
+  };
+
+  engine.start();
 }
 
 main();

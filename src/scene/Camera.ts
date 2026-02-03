@@ -1,4 +1,5 @@
 import { mat4, vec3 } from "wgpu-matrix";
+import { angle2Rad } from "../utils/math";
 
 export class Camera {
   position = vec3.create(0, 0, 0);
@@ -8,7 +9,7 @@ export class Camera {
   private _projectionMatrix = mat4.create();
   private _viewMatrix = mat4.create();
 
-  fov: number = (45 * Math.PI) / 180;
+  fov: number = angle2Rad(60);
   aspect: number = 1.0;
   near: number = 0.1;
   far: number = 100.0;
