@@ -23,7 +23,7 @@ async function main() {
   // 2. 创建场景组件
   const scene = new Scene();
   const camera = new Camera();
-  camera.position[2] = 5;
+  camera.position[2] = 2;
   scene.activeCamera = camera;
 
   // 渲染器
@@ -75,12 +75,7 @@ async function main() {
   // 6. 渲染循环
   engine.onRender = () => {
     // 旋转三角形
-    const rotation = triangleActor.transform.rotation;
-    triangleActor.transform.setRotation(
-      rotation[0],
-      rotation[1],
-      rotation[2] + 0.01,
-    );
+    triangleActor.transform.rotation[2] += 0.01;
     renderer.render(scene);
   };
 
