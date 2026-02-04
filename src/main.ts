@@ -9,9 +9,10 @@ import { Camera } from "./scene/Camera";
 import { Scene } from "./scene/Scene";
 import basicShaderCode from "./shaders/basic.wgsl?raw";
 import "./style.css";
+import GUI from "lil-gui";
+import { angle2Rad } from "./utils/math";
 
 async function main() {
-  // 1. 初始化引擎
   let engine: Engine | null = null;
   try {
     engine = new Engine(document.getElementById("canvas") as HTMLCanvasElement);
@@ -25,6 +26,22 @@ async function main() {
   const camera = new Camera();
   camera.position = vec3.create(1, 2, 2);
   scene.activeCamera = camera;
+
+  // --- GUI Setup ---
+  const gui = new GUI();
+  const cameraFolder = gui.addFolder("Camera");
+  const cameraConfig = {
+    fov: 60,
+  };
+  camera.fov = angle2Rad(cameraConfig.fov);
+  cameraFolder
+    .add(cameraConfig, "fov", 0, 179)
+    .name("FOV")
+    .onChange((v: number) => {
+      camera.fov = angle2Rad(v);
+    });
+  cameraFolder.add(camera, "near", 0.1, 1).name("Near");
+  cameraFolder.add(camera, "far", 1, 100).name("Far");
 
   const renderer = new ForwardRenderer(engine);
 

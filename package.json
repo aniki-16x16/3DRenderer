@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@webgpu/types": "^0.1.69",
+    "lil-gui": "^0.21.0",
     "wgpu-matrix": "^3.4.0"
   }
 }
