@@ -20,35 +20,18 @@ async function main() {
     return;
   }
 
-  // 2. 创建场景组件
   const scene = new Scene();
   const camera = new Camera();
   camera.position[2] = 2;
   scene.activeCamera = camera;
 
-  // 渲染器
   const renderer = new ForwardRenderer(engine);
 
-  // 3. 创建资源: Mesh, Shader, Material
-  const SQRT_3 = Math.sqrt(3);
-  const triangleMesh = new Mesh([
-    (-0.5 / 2) * SQRT_3,
-    -0.5 / 2,
-    0.0, // V0
-    (0.5 / 2) * SQRT_3,
-    -0.5 / 2,
-    0.0, // V1
-    0.0,
-    0.5,
-    0.0, // V2
-  ]);
-  triangleMesh.initialize(engine.device!);
   const basicShader = new Shader(
     engine.device!,
     "basic-shader",
     basicShaderCode,
   );
-
   const basicMaterial = new Material("basic-material");
   basicMaterial.initialize(
     engine.device!,
@@ -58,24 +41,35 @@ async function main() {
     renderer.modelBindGroupLayout, // Group 2
   );
 
-  // 4. 创建物体
-  const triangleActor = new Object3D("Triangle", triangleMesh, basicMaterial);
-  scene.add(triangleActor);
+  const obj1 = (() => {
+    const mesh = new Mesh([-0.5, -0.7, 0.0, 0.3, -0.2, 0.0, -0.1, 0.5, 0.0]);
+    mesh.initialize(engine.device!);
+    const actor = new Object3D("Triangle1", mesh, basicMaterial);
+    return actor;
+  })();
+  const obj2 = (() => {
+    const mesh = new Mesh([-0.6, 0.1, -0.1, 0.7, -0.4, -0.1, 0.4, 0.6, -0.1]);
+    mesh.initialize(engine.device!);
+    const actor = new Object3D("Triangle2", mesh, basicMaterial);
+    return actor;
+  })();
+  scene.add(obj1);
+  scene.add(obj2);
 
-  // 5. 事件处理
   engine.resize();
+  camera.aspect = engine.canvas.width / engine.canvas.height;
+  renderer.resize(engine.canvas.width, engine.canvas.height);
   window.addEventListener("resize", () => {
-    engine!.resize();
+    engine.resize();
+    renderer.resize(engine.canvas.width, engine.canvas.height);
   });
-
   engine.onResize = (width, height) => {
     camera.aspect = width / height;
   };
 
-  // 6. 渲染循环
   engine.onRender = () => {
-    // 旋转三角形
-    triangleActor.transform.rotation[2] += 0.01;
+    obj1.transform.rotation[2] += 0.01;
+    obj2.transform.rotation[1] += 0.01;
     renderer.render(scene);
   };
 

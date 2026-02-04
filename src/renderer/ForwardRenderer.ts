@@ -15,6 +15,8 @@ export class ForwardRenderer {
   private cameraBuffer: GPUBuffer;
   private cameraBindGroup: GPUBindGroup;
 
+  private depthTexture: GPUTexture | null = null;
+
   constructor(engine: Engine) {
     this.engine = engine;
     const device = engine.device!;
@@ -57,6 +59,18 @@ export class ForwardRenderer {
     });
   }
 
+  resize(width: number, height: number) {
+    if (this.depthTexture) {
+      this.depthTexture.destroy();
+    }
+    this.depthTexture = this.engine.device!.createTexture({
+      label: "DepthTexture",
+      size: [width, height],
+      format: "depth24plus",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+  }
+
   render(scene: Scene) {
     const device = this.engine.device!;
     const context = this.engine.context!;
@@ -80,6 +94,12 @@ export class ForwardRenderer {
           storeOp: "store",
         },
       ],
+      depthStencilAttachment: {
+        view: this.depthTexture!.createView(),
+        depthClearValue: 1.0,
+        depthLoadOp: "clear",
+        depthStoreOp: "store",
+      },
     };
     const pass = commandEncoder.beginRenderPass(renderPassDescriptor);
 

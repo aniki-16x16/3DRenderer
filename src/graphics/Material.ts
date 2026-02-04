@@ -99,6 +99,11 @@ export class Material {
         topology: this.topology,
         cullMode: this.cullMode,
       },
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus",
+      },
     });
 
     // 4. 创建默认的 BindGroup (Group 1)
