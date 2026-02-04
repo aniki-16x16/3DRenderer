@@ -1,16 +1,16 @@
 import { vec3 } from "wgpu-matrix";
 import { Engine } from "./core/Engine";
 import { Object3D } from "./core/Object3D";
-import { Material } from "./graphics/Material";
 import { Mesh } from "./graphics/Mesh";
 import { Shader } from "./graphics/Shader";
 import { ForwardRenderer } from "./renderer/ForwardRenderer";
 import { Camera } from "./scene/Camera";
 import { Scene } from "./scene/Scene";
-import basicShaderCode from "./shaders/basic.wgsl?raw";
+import shaderCode from "./shaders/solid.wgsl?raw";
 import "./style.css";
 import GUI from "lil-gui";
 import { angle2Rad } from "./utils/math";
+import { SolidColorMaterial } from "./materials/SolidColor";
 
 async function main() {
   let engine: Engine | null = null;
@@ -48,15 +48,23 @@ async function main() {
   const basicShader = new Shader(
     engine.device!,
     "basic-shader",
-    basicShaderCode,
+    shaderCode,
   );
-  const basicMaterial = new Material("basic-material");
-  basicMaterial.initialize(
+  const redMaterial = new SolidColorMaterial({ r: 0.8, g: 0.5, b: 0.3, label: 'red-material' });
+  redMaterial.initialize(
     engine.device!,
     engine.format!,
     basicShader,
-    renderer.cameraBindGroupLayout, // Group 0
-    renderer.modelBindGroupLayout, // Group 2
+    renderer.cameraBindGroupLayout,
+    renderer.modelBindGroupLayout,
+  );
+  const blueMaterial = new SolidColorMaterial({ r: 0.3, g: 0.5, b: 0.8, label: 'blue-material' });
+  blueMaterial.initialize(
+    engine.device!,
+    engine.format!,
+    basicShader,
+    renderer.cameraBindGroupLayout,
+    renderer.modelBindGroupLayout,
   );
 
   // 这是一个边长为 1 的立方体，中心在原点
@@ -135,11 +143,14 @@ async function main() {
   const cubeMesh = new Mesh(vertices, indices);
   cubeMesh.initialize(engine.device!);
 
-  const cube1 = new Object3D("Cube1", cubeMesh, basicMaterial);
-  const cube2 = new Object3D("Cube2", cubeMesh, basicMaterial);
-  cube2.transform.position = vec3.create(2, 0, 0);
-  scene.add(cube1);
-  scene.add(cube2);
+  const cube1 = new Object3D("Cube1", cubeMesh, blueMaterial);
+  const cube2 = new Object3D("Cube2", cubeMesh, redMaterial);
+  const cube3 = new Object3D("Cube3", cubeMesh, blueMaterial);
+  cube1.transform.position = vec3.create(-1.0, 0.2, 0);
+  cube3.transform.position = vec3.create(1.0, -0.1, 0);
+  scene.add(cube1)
+    .add(cube2)
+    .add(cube3);
 
   engine.resize();
   camera.aspect = engine.canvas.width / engine.canvas.height;
@@ -153,8 +164,8 @@ async function main() {
   };
 
   engine.onRender = () => {
-    cube1.transform.rotation[1] += 0.01;
-    cube2.transform.rotation[1] -= 0.01;
+    cube1.transform.rotation[1] -= 0.001;
+    cube3.transform.rotation[1] += 0.001;
     renderer.render(scene);
   };
 

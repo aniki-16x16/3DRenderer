@@ -7,6 +7,7 @@ export class Scene {
 
   add(object: Object3D) {
     this.objects.push(object);
+    return this;
   }
 
   remove(object: Object3D) {
@@ -14,5 +15,6 @@ export class Scene {
     if (index > -1) {
       this.objects.splice(index, 1);
     }
+    return this;
   }
 }

@@ -106,12 +106,15 @@ export class ForwardRenderer {
     // 2. 绑定 Group 0 (Frame Level) - 只需一次
     pass.setBindGroup(0, this.cameraBindGroup);
 
-    // 3. 排序物体 (按 Material ID / Pipeline 排序)
-    // 假设 Material 实例是复用的，这里简单按 Material 对象引用或 ID 排序
+    // 3. 排序物体
+    // 先按照 Material 分类，减少 Pipeline 切换次数
+    // 再按照实例的ID分类，减少同一实例的 BindGroup 切换次数
     const sortedObjects = [...scene.objects].sort((a, b) => {
       if (!a.material || !b.material) return 0;
-      // 这里只是简单的示例，实际可以使用 material.id
-      return a.material.label.localeCompare(b.material.label);
+      if (a.material.TAG === b.material.TAG) {
+        return a.material.ID - b.material.ID;
+      }
+      return a.material.TAG < b.material.TAG ? -1 : 1;
     });
 
     // 记录上一次使用的 Pipeline 和 Material BindGroup，避免重复绑定

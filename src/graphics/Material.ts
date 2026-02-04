@@ -1,3 +1,4 @@
+import { globalResourceCache } from "../core/ResourceCache";
 import { Shader } from "./Shader";
 
 /**
@@ -10,6 +11,21 @@ import { Shader } from "./Shader";
  * Group 2: Model Level (Model) - 由 Renderer 提供 Layout
  */
 export class Material {
+  static _idCounter = 1;
+  static generateId() {
+    return Material._idCounter++;
+  }
+
+  protected _TAG = "Base";
+  get TAG() {
+    return this._TAG;
+  }
+
+  private _ID: number = 0;
+  get ID() {
+    return this._ID;
+  }
+
   pipeline: GPURenderPipeline | null = null;
   label: string;
 
@@ -20,8 +36,9 @@ export class Material {
   cullMode: GPUCullMode = "back";
   topology: GPUPrimitiveTopology = "triangle-list";
 
-  constructor(label: string) {
+  constructor(label = '') {
     this.label = label;
+    this._ID = Material.generateId();
   }
 
   /**
@@ -42,69 +59,85 @@ export class Material {
     // 1. 创建 Material 自己的 Layout (Group 1)
     // 默认空 Layout (如果子类不重写，表示该材质无需 Uniform)
     if (!this.bindGroupLayout) {
-      this.bindGroupLayout = device.createBindGroupLayout({
-        label: `${this.label}-empty-layout`,
-        entries: [], // 空
-      });
+      const cachedBindLayout = globalResourceCache.getBindGroupLayout(this._TAG);
+      if (cachedBindLayout) {
+        this.bindGroupLayout = cachedBindLayout;
+      } else {
+        this.bindGroupLayout = device.createBindGroupLayout({
+          label: `${this.label}-empty-layout`,
+          entries: [], // 空
+        });
+        globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
+      }
     }
 
     // 2. 创建 PipelineLayout (0: Frame, 1: Material, 2: Model)
-    const pipelineLayout = device.createPipelineLayout({
+    const cachedPipelineLayout = globalResourceCache.getPipelineLayout(this._TAG);
+    const pipelineLayout = cachedPipelineLayout ?? device.createPipelineLayout({
       label: `${this.label}-pipeline-layout`,
       bindGroupLayouts: [frameLayout, this.bindGroupLayout, modelLayout],
     });
+    if (!cachedPipelineLayout) {
+      globalResourceCache.setPipelineLayout(this._TAG, pipelineLayout);
+    }
 
     // 3. 创建 Pipeline
-    this.pipeline = device.createRenderPipeline({
-      label: this.label,
-      layout: pipelineLayout,
-      vertex: {
-        module: shader.module,
-        entryPoint: "vs_main",
-        buffers: [
-          {
-            arrayStride: 3 * 4,
-            attributes: [
-              {
-                shaderLocation: 0,
-                offset: 0,
-                format: "float32x3",
-              },
-            ],
-          },
-        ],
-      },
-      fragment: {
-        module: shader.module,
-        entryPoint: "fs_main",
-        targets: [
-          {
-            format: format,
-            blend: {
-              color: {
-                srcFactor: "src-alpha",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
-              },
-              alpha: {
-                srcFactor: "one",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
+    const cachedPipeline = globalResourceCache.getRenderPipeline(this._TAG);
+    if (cachedPipeline) {
+      this.pipeline = cachedPipeline;
+    } else {
+      this.pipeline = device.createRenderPipeline({
+        label: this.label,
+        layout: pipelineLayout,
+        vertex: {
+          module: shader.module,
+          entryPoint: "vs_main",
+          buffers: [
+            {
+              arrayStride: 3 * 4,
+              attributes: [
+                {
+                  shaderLocation: 0,
+                  offset: 0,
+                  format: "float32x3",
+                },
+              ],
+            },
+          ],
+        },
+        fragment: {
+          module: shader.module,
+          entryPoint: "fs_main",
+          targets: [
+            {
+              format: format,
+              blend: {
+                color: {
+                  srcFactor: "src-alpha",
+                  dstFactor: "one-minus-src-alpha",
+                  operation: "add",
+                },
+                alpha: {
+                  srcFactor: "one",
+                  dstFactor: "one-minus-src-alpha",
+                  operation: "add",
+                },
               },
             },
-          },
-        ],
-      },
-      primitive: {
-        topology: this.topology,
-        cullMode: this.cullMode,
-      },
-      depthStencil: {
-        depthWriteEnabled: true,
-        depthCompare: "less",
-        format: "depth24plus",
-      },
-    });
+          ],
+        },
+        primitive: {
+          topology: this.topology,
+          cullMode: this.cullMode,
+        },
+        depthStencil: {
+          depthWriteEnabled: true,
+          depthCompare: "less",
+          format: "depth24plus",
+        },
+      });
+      globalResourceCache.setRenderPipeline(this._TAG, this.pipeline);
+    }
 
     // 4. 创建默认的 BindGroup (Group 1)
     // 子类可以在这里做更多事情，比如创建 Buffer
