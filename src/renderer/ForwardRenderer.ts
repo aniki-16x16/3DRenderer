@@ -185,6 +185,13 @@ export class ForwardRenderer {
 
     // 绘制
     pass.setVertexBuffer(0, obj.mesh!.vertexBuffer!);
+    if (obj.mesh!.indexBuffer) {
+      const indexFormat: GPUIndexFormat =
+        obj.mesh!.indexBuffer instanceof Uint32Array ? "uint32" : "uint16";
+      pass.setIndexBuffer(obj.mesh!.indexBuffer!, indexFormat);
+      pass.drawIndexed(obj.mesh!.indexCount, 1, 0, 0, 0);
+      return;
+    }
     pass.draw(obj.mesh!.vertexCount, 1, 0, 0);
   }
 }

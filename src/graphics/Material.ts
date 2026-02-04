@@ -17,7 +17,7 @@ export class Material {
   bindGroupLayout: GPUBindGroupLayout | null = null;
   bindGroup: GPUBindGroup | null = null;
 
-  cullMode: GPUCullMode = "none";
+  cullMode: GPUCullMode = "back";
   topology: GPUPrimitiveTopology = "triangle-list";
 
   constructor(label: string) {

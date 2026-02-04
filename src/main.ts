@@ -1,3 +1,4 @@
+import { vec3 } from "wgpu-matrix";
 import { Engine } from "./core/Engine";
 import { Object3D } from "./core/Object3D";
 import { Material } from "./graphics/Material";
@@ -22,7 +23,7 @@ async function main() {
 
   const scene = new Scene();
   const camera = new Camera();
-  camera.position[2] = 2;
+  camera.position = vec3.create(1, 2, 2);
   scene.activeCamera = camera;
 
   const renderer = new ForwardRenderer(engine);
@@ -41,20 +42,87 @@ async function main() {
     renderer.modelBindGroupLayout, // Group 2
   );
 
-  const obj1 = (() => {
-    const mesh = new Mesh([-0.5, -0.7, 0.0, 0.3, -0.2, 0.0, -0.1, 0.5, 0.0]);
-    mesh.initialize(engine.device!);
-    const actor = new Object3D("Triangle1", mesh, basicMaterial);
-    return actor;
-  })();
-  const obj2 = (() => {
-    const mesh = new Mesh([-0.6, 0.1, -0.1, 0.7, -0.4, -0.1, 0.4, 0.6, -0.1]);
-    mesh.initialize(engine.device!);
-    const actor = new Object3D("Triangle2", mesh, basicMaterial);
-    return actor;
-  })();
-  scene.add(obj1);
-  scene.add(obj2);
+  // 这是一个边长为 1 的立方体，中心在原点
+  const vertices = new Float32Array([
+    // Front face (z = 0.5)
+    -0.5,
+    -0.5,
+    0.5, // 0: 左下前
+    0.5,
+    -0.5,
+    0.5, // 1: 右下前
+    0.5,
+    0.5,
+    0.5, // 2: 右上前
+    -0.5,
+    0.5,
+    0.5, // 3: 左上前
+    // Back face (z = -0.5)
+    -0.5,
+    -0.5,
+    -0.5, // 4: 左下后
+    0.5,
+    -0.5,
+    -0.5, // 5: 右下后
+    0.5,
+    0.5,
+    -0.5, // 6: 右上后
+    -0.5,
+    0.5,
+    -0.5, // 7: 左上后
+  ]);
+  const indices = new Uint16Array([
+    // Front
+    0,
+    1,
+    2,
+    0,
+    2,
+    3,
+    // Back
+    5,
+    4,
+    7,
+    5,
+    7,
+    6, // 注意背面顺序，使其朝外
+    // Top
+    3,
+    2,
+    6,
+    3,
+    6,
+    7,
+    // Bottom
+    4,
+    5,
+    1,
+    4,
+    1,
+    0,
+    // Right
+    1,
+    5,
+    6,
+    1,
+    6,
+    2,
+    // Left
+    4,
+    0,
+    3,
+    4,
+    3,
+    7,
+  ]);
+  const cubeMesh = new Mesh(vertices, indices);
+  cubeMesh.initialize(engine.device!);
+
+  const cube1 = new Object3D("Cube1", cubeMesh, basicMaterial);
+  const cube2 = new Object3D("Cube2", cubeMesh, basicMaterial);
+  cube2.transform.position = vec3.create(2, 0, 0);
+  scene.add(cube1);
+  scene.add(cube2);
 
   engine.resize();
   camera.aspect = engine.canvas.width / engine.canvas.height;
@@ -68,8 +136,8 @@ async function main() {
   };
 
   engine.onRender = () => {
-    obj1.transform.rotation[2] += 0.01;
-    obj2.transform.rotation[1] += 0.01;
+    cube1.transform.rotation[1] += 0.01;
+    cube2.transform.rotation[1] -= 0.01;
     renderer.render(scene);
   };
 
