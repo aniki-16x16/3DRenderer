@@ -1,5 +1,4 @@
 struct VertextIn {
-  @builtin(vertex_index) vertex_index: u32,
   @location(0) position: vec3f,
 }
 
@@ -8,7 +7,7 @@ struct VertexOut {
 }
 
 @group(0) @binding(0) var<uniform> camera: mat4x4f;
-@group(1) @binding(0) var<uniform> materialColor: vec4f;
+@group(1) @binding(0) var<uniform> material_color: vec4f;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
 @vertex
@@ -21,5 +20,5 @@ fn vs_main(input: VertextIn) -> VertexOut {
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  return materialColor;
+  return material_color;
 }

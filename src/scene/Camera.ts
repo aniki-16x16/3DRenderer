@@ -10,7 +10,7 @@ export class Camera {
   private _viewMatrix = mat4.create();
   private _viewProjectionMatrix = mat4.create();
 
-  fov: number = angle2Rad(60);
+  fov: number = angle2Rad(45);
   aspect: number = 1.0;
   near: number = 0.1;
   far: number = 100.0;

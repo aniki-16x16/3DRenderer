@@ -36,7 +36,7 @@ export class Material {
   cullMode: GPUCullMode = "back";
   topology: GPUPrimitiveTopology = "triangle-list";
 
-  constructor(label = '') {
+  constructor(label = "") {
     this.label = label;
     this._ID = Material.generateId();
   }
@@ -59,7 +59,9 @@ export class Material {
     // 1. 创建 Material 自己的 Layout (Group 1)
     // 默认空 Layout (如果子类不重写，表示该材质无需 Uniform)
     if (!this.bindGroupLayout) {
-      const cachedBindLayout = globalResourceCache.getBindGroupLayout(this._TAG);
+      const cachedBindLayout = globalResourceCache.getBindGroupLayout(
+        this._TAG,
+      );
       if (cachedBindLayout) {
         this.bindGroupLayout = cachedBindLayout;
       } else {
@@ -72,11 +74,15 @@ export class Material {
     }
 
     // 2. 创建 PipelineLayout (0: Frame, 1: Material, 2: Model)
-    const cachedPipelineLayout = globalResourceCache.getPipelineLayout(this._TAG);
-    const pipelineLayout = cachedPipelineLayout ?? device.createPipelineLayout({
-      label: `${this.label}-pipeline-layout`,
-      bindGroupLayouts: [frameLayout, this.bindGroupLayout, modelLayout],
-    });
+    const cachedPipelineLayout = globalResourceCache.getPipelineLayout(
+      this._TAG,
+    );
+    const pipelineLayout =
+      cachedPipelineLayout ??
+      device.createPipelineLayout({
+        label: `${this.label}-pipeline-layout`,
+        bindGroupLayouts: [frameLayout, this.bindGroupLayout, modelLayout],
+      });
     if (!cachedPipelineLayout) {
       globalResourceCache.setPipelineLayout(this._TAG, pipelineLayout);
     }
@@ -92,18 +98,7 @@ export class Material {
         vertex: {
           module: shader.module,
           entryPoint: "vs_main",
-          buffers: [
-            {
-              arrayStride: 3 * 4,
-              attributes: [
-                {
-                  shaderLocation: 0,
-                  offset: 0,
-                  format: "float32x3",
-                },
-              ],
-            },
-          ],
+          buffers: this.getVertextBufferLayouts(),
         },
         fragment: {
           module: shader.module,
@@ -152,5 +147,20 @@ export class Material {
       layout: this.bindGroupLayout,
       entries: [], // 空 entries 对应上面的空 layout
     });
+  }
+
+  protected getVertextBufferLayouts(): GPUVertexBufferLayout[] {
+    return [
+      {
+        arrayStride: 3 * 4,
+        attributes: [
+          {
+            shaderLocation: 0,
+            offset: 0,
+            format: "float32x3",
+          },
+        ],
+      },
+    ];
   }
 }

@@ -21,13 +21,13 @@ export class ForwardRenderer {
     this.engine = engine;
     const device = engine.device!;
 
-    // Group 0: Camera ViewProjection
+    // Group 0: Camera
     this.cameraBindGroupLayout = device.createBindGroupLayout({
       label: "camera-bind-group-layout",
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.VERTEX,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           buffer: { type: "uniform" },
         },
       ],
@@ -48,10 +48,9 @@ export class ForwardRenderer {
     // 初始化全局 Camera 资源
     this.cameraBuffer = device.createBuffer({
       label: "GlobalCameraBuffer",
-      size: 64,
+      size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + padding
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-
     this.cameraBindGroup = device.createBindGroup({
       label: "GlobalCameraBindGroup",
       layout: this.cameraBindGroupLayout,
@@ -82,6 +81,7 @@ export class ForwardRenderer {
     camera.updateMatrix();
     const vpMatrix = camera.getViewProjectionMatrix();
     device.queue.writeBuffer(this.cameraBuffer, 0, vpMatrix.buffer);
+    device.queue.writeBuffer(this.cameraBuffer, 16 * 4, camera.position.buffer);
 
     const textureView = context.getCurrentTexture().createView();
     const commandEncoder = device.createCommandEncoder();
@@ -188,6 +188,9 @@ export class ForwardRenderer {
 
     // 绘制
     pass.setVertexBuffer(0, obj.mesh!.vertexBuffer!);
+    if (obj.mesh!.normalBuffer) {
+      pass.setVertexBuffer(1, obj.mesh!.normalBuffer!);
+    }
     if (obj.mesh!.indexBuffer) {
       const indexFormat: GPUIndexFormat =
         obj.mesh!.indexBuffer instanceof Uint32Array ? "uint32" : "uint16";

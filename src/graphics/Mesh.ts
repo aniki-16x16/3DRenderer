@@ -5,9 +5,11 @@
 export class Mesh {
   vertexData: Float32Array;
   indexData: Uint16Array | Uint32Array | null;
+  normalData: Float32Array | null = null;
 
   vertexBuffer: GPUBuffer | null = null;
   indexBuffer: GPUBuffer | null = null;
+  normalBuffer: GPUBuffer | null = null;
 
   vertexCount: number = 0;
   indexCount: number = 0;
@@ -19,6 +21,7 @@ export class Mesh {
   constructor(
     vertices: number[] | Float32Array,
     indices?: number[] | Uint16Array | Uint32Array,
+    normals?: number[] | Float32Array,
   ) {
     this.vertexData =
       vertices instanceof Float32Array ? vertices : new Float32Array(vertices);
@@ -39,6 +42,11 @@ export class Mesh {
       this.indexCount = 0;
     }
 
+    if (normals) {
+      this.normalData =
+        normals instanceof Float32Array ? normals : new Float32Array(normals);
+    }
+
     // 假设每个顶点只有 position(3)，后续如果引入标准材质需要改为 STRIDE 计算
     // 暂时简单处理：如果不传索引，则顶点数 = 数据长度 / 3 (假设只有 position)
     // 这是一个临时假设，稍后我们定义 VertexLayout 时会加强这里
@@ -56,7 +64,6 @@ export class Mesh {
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-
     new Float32Array(this.vertexBuffer.getMappedRange()).set(this.vertexData);
     this.vertexBuffer.unmap();
 
@@ -80,6 +87,16 @@ export class Mesh {
       }
       this.indexBuffer.unmap();
     }
+
+    if (this.normalData) {
+      this.normalBuffer = device.createBuffer({
+        size: this.normalData.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+      });
+      new Float32Array(this.normalBuffer.getMappedRange()).set(this.normalData);
+      this.normalBuffer.unmap();
+    }
   }
 
   /**
@@ -88,5 +105,6 @@ export class Mesh {
   destroy() {
     if (this.vertexBuffer) this.vertexBuffer.destroy();
     if (this.indexBuffer) this.indexBuffer.destroy();
+    if (this.normalBuffer) this.normalBuffer.destroy();
   }
 }
