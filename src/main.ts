@@ -6,6 +6,7 @@ import { Shader } from "./graphics/Shader";
 import { ForwardRenderer } from "./renderer/ForwardRenderer";
 import { Camera } from "./scene/Camera";
 import { Scene } from "./scene/Scene";
+import { OrbitControls } from "./scene/OrbitControls";
 import shaderCode from "./shaders/phong.wgsl?raw";
 import "./style.css";
 import GUI from "lil-gui";
@@ -27,6 +28,9 @@ async function main() {
   const camera = new Camera();
   camera.position = vec3.create(0, 2, 2);
   scene.activeCamera = camera;
+
+  // 添加 OrbitControls
+  new OrbitControls(camera, engine.canvas as HTMLElement);
 
   // --- GUI Setup ---
   const gui = new GUI();
