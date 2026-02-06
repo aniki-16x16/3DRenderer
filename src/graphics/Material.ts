@@ -1,5 +1,6 @@
 import { globalResourceCache } from "../core/ResourceCache";
 import { Shader } from "./Shader";
+import { StandardLayouts } from "./StandardLayouts";
 
 /**
  * 材质基类
@@ -53,8 +54,8 @@ export class Material {
     device: GPUDevice,
     format: GPUTextureFormat,
     shader: Shader,
-    frameLayout: GPUBindGroupLayout,
-    modelLayout: GPUBindGroupLayout,
+    frameLayout: GPUBindGroupLayout = StandardLayouts.cameraBindGroupLayout,
+    modelLayout: GPUBindGroupLayout = StandardLayouts.modelBindGroupLayout,
   ) {
     // 1. 创建 Material 自己的 Layout (Group 1)
     // 默认空 Layout (如果子类不重写，表示该材质无需 Uniform)

@@ -11,8 +11,8 @@ import "./style.css";
 import GUI from "lil-gui";
 import { angle2Rad } from "./utils/math";
 import { PhongMaterial } from "./materials/Phong";
-import type { Material } from "./graphics/Material";
 import { initializeWhiteTexture } from "./textures/white";
+import { StandardLayouts } from "./graphics/StandardLayouts";
 import { OBJLoader } from "./loader/OBJLoader";
 
 async function main() {
@@ -20,11 +20,13 @@ async function main() {
   try {
     engine = new Engine(document.getElementById("canvas") as HTMLCanvasElement);
     await engine.init();
+    StandardLayouts.initialize(engine.device!);
   } catch (error) {
     console.error("Failed to initialize the engine:", error);
     return;
   }
   initializeWhiteTexture(engine.device!);
+  StandardLayouts.initialize(engine.device!);
 
   const scene = new Scene();
   const camera = new Camera();
@@ -53,23 +55,15 @@ async function main() {
   const renderer = new ForwardRenderer(engine);
 
   const basicShader = new Shader(engine.device!, "basic-shader", shaderCode);
-  const matInitHelper = (mat: Material) => {
-    mat.initialize(
-      engine!.device!,
-      engine!.format!,
-      basicShader,
-      renderer.cameraBindGroupLayout,
-      renderer.modelBindGroupLayout,
-    );
-  };
 
   const bunnyMesh = await new OBJLoader().load("assets/obj/bunny_10k.obj");
   bunnyMesh.initialize(engine.device!);
   const bunnyMaterial = new PhongMaterial({
     color: [1, 1, 1],
   });
-  matInitHelper(bunnyMaterial);
+  bunnyMaterial.initialize(engine.device!, engine.format!, basicShader);
   const bunny = new Object3D("bunny", bunnyMesh, bunnyMaterial);
+  bunny.initialize(engine.device!);
   scene.add(bunny);
 
   engine.resize();

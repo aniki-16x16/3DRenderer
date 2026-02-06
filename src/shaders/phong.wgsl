@@ -14,7 +14,7 @@ struct VertexOut {
 struct CameraUniforms {
   vp_matrix: mat4x4f,
   position: vec3f,
-  padding: f32,
+  time: f32,
 }
 
 struct MaterialUniforms {
@@ -29,7 +29,6 @@ struct MaterialUniforms {
 @group(1) @binding(2) var m_sampler: sampler;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
-const SUN_POSITION = vec3f(1.0);
 const AMBIENT_STRENGTH = 0.1;
 const SPECULAR_STRENGTH = 0.5;
 
@@ -47,7 +46,8 @@ fn vs_main(input: VertextIn) -> VertexOut {
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  let light_dir = normalize(SUN_POSITION - input.world_position);
+  let sun_position = vec3f(cos(camera.time), 1.0, sin(camera.time));
+  let light_dir = normalize(sun_position - input.world_position);
   let view_dir = normalize(camera.position - input.world_position);
   let normal = input.world_normal;
   let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;

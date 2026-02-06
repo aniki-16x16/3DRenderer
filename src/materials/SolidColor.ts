@@ -25,8 +25,6 @@ export class SolidColorMaterial extends Material {
     device: GPUDevice,
     format: GPUTextureFormat,
     shader: Shader,
-    frameLayout: GPUBindGroupLayout,
-    modelLayout: GPUBindGroupLayout,
   ): void {
     // 1. 创建 Uniform Buffer
     this.uniformBuffer = device.createBuffer({
@@ -57,7 +55,7 @@ export class SolidColorMaterial extends Material {
     }
 
     // 3. 调用父类的初始化，创建 Pipeline
-    super.initialize(device, format, shader, frameLayout, modelLayout);
+    super.initialize(device, format, shader);
   }
 
   protected createBindGroup(device: GPUDevice) {
