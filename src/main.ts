@@ -14,6 +14,8 @@ import { angle2Rad } from "./utils/math";
 import { createRepeatData } from "./utils/mesh";
 import { PhongMaterial } from "./materials/Phong";
 import { Texture } from "./graphics/Texture";
+import type { Material } from "./graphics/Material";
+import { initializeWhiteTexture } from "./textures/white";
 
 async function main() {
   let engine: Engine | null = null;
@@ -24,6 +26,7 @@ async function main() {
     console.error("Failed to initialize the engine:", error);
     return;
   }
+  initializeWhiteTexture(engine.device!);
 
   const scene = new Scene();
   const camera = new Camera();
@@ -54,32 +57,34 @@ async function main() {
   const basicShader = new Shader(engine.device!, "basic-shader", shaderCode);
   const texture = new Texture();
   await texture.load(engine.device!, "assets/kiana.png");
+  const matInitHelper = (mat: Material) => {
+    mat.initialize(
+      engine!.device!,
+      engine!.format!,
+      basicShader,
+      renderer.cameraBindGroupLayout,
+      renderer.modelBindGroupLayout,
+    );
+  };
   const redMaterial = new PhongMaterial({
     label: "red-material",
     color: [0.8, 0.2, 0.2],
     specColor: [1.0, 1.0, 1.0],
-    texture,
   });
-  redMaterial.initialize(
-    engine.device!,
-    engine.format!,
-    basicShader,
-    renderer.cameraBindGroupLayout,
-    renderer.modelBindGroupLayout,
-  );
+  matInitHelper(redMaterial);
   const blueMaterial = new PhongMaterial({
     label: "blue-material",
     color: [0.2, 0.2, 0.8],
     specColor: [1.0, 1.0, 1.0],
+  });
+  matInitHelper(blueMaterial);
+  const texturedMaterial = new PhongMaterial({
+    label: "textured-material",
+    color: [1.0, 1.0, 1.0],
+    specColor: [1.0, 1.0, 1.0],
     texture,
   });
-  blueMaterial.initialize(
-    engine.device!,
-    engine.format!,
-    basicShader,
-    renderer.cameraBindGroupLayout,
-    renderer.modelBindGroupLayout,
-  );
+  matInitHelper(texturedMaterial);
 
   // 1. 位置数据 (24 个顶点, 每个面 4 个)
   const positions = new Float32Array([
@@ -128,8 +133,10 @@ async function main() {
 
   const cube1 = new Object3D("Cube1", cubeMesh, blueMaterial);
   const cube2 = new Object3D("Cube2", cubeMesh, redMaterial);
+  const cube3 = new Object3D("Cube3", cubeMesh, texturedMaterial);
   cube2.transform.position = vec3.create(2.0, 0.2, 0);
-  scene.add(cube1).add(cube2);
+  cube3.transform.position = vec3.create(0.0, -0.1, 2.0);
+  scene.add(cube1).add(cube2).add(cube3);
 
   engine.resize();
   camera.aspect = engine.canvas.width / engine.canvas.height;
@@ -145,6 +152,7 @@ async function main() {
   engine.onRender = () => {
     cube1.transform.rotation[1] -= 0.001;
     cube2.transform.rotation[0] += 0.001;
+    cube3.transform.rotation[2] -= 0.001;
     renderer.render(scene);
   };
 

@@ -50,12 +50,12 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
   let light_dir = normalize(SUN_POSITION - input.world_position);
   let view_dir = normalize(camera.position - input.world_position);
   let normal = input.world_normal;
-  let tex_color = textureSample(texture, m_sampler, input.uv).rgb;
+  let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;
 
-  let ambient = AMBIENT_STRENGTH * tex_color;
+  let ambient = AMBIENT_STRENGTH * base_color;
   
   let diff = max(dot(normal, light_dir), 0.0);
-  let diffuse = diff * tex_color;
+  let diffuse = diff * base_color;
 
   let half_vec = normalize(light_dir + view_dir);
   let spec = pow(max(dot(normal, half_vec), 0.0), material.shininess);

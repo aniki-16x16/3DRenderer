@@ -9,7 +9,10 @@ export class Texture {
     this.label = label;
   }
 
-  initialize(device: GPUDevice) {
+  initialize(
+    device: GPUDevice,
+    color: [number, number, number, number] = [255, 0, 255, 255],
+  ) {
     // 预先创建一个空的 GPUTexture，稍后会用实际图片数据替换它
     this.texture = device.createTexture({
       label: this.label,
@@ -19,7 +22,7 @@ export class Texture {
     });
     device.queue.writeTexture(
       { texture: this.texture },
-      new Uint8Array([255, 255, 255, 255]), // 白色像素
+      new Uint8Array(color), // 默认填充为纯品红色，表示纹理未加载
       { bytesPerRow: 4 },
       [1, 1],
     );

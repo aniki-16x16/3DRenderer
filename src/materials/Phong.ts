@@ -2,6 +2,7 @@ import { globalResourceCache } from "../core/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
+import { whiteTexture } from "../textures/white";
 
 interface Props {
   label?: string;
@@ -25,7 +26,7 @@ export class PhongMaterial extends Material {
     this.color = new Float32Array([r, g, b, 1.0]);
     this.specColor = new Float32Array(props.specColor ?? [1.0, 1.0, 1.0]);
     this.shininess = props.shininess ?? 32.0;
-    this.texture = props.texture ?? null;
+    this.texture = props.texture ?? whiteTexture;
   }
 
   initialize(
@@ -50,10 +51,7 @@ export class PhongMaterial extends Material {
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
-    const cachedBindLayout = globalResourceCache.getBindGroupLayout(
-      this._TAG,
-      this.texture ? "textured" : undefined,
-    );
+    const cachedBindLayout = globalResourceCache.getBindGroupLayout(this._TAG);
     if (cachedBindLayout) {
       this.bindGroupLayout = cachedBindLayout;
     } else {
@@ -65,27 +63,19 @@ export class PhongMaterial extends Material {
             visibility: GPUShaderStage.FRAGMENT,
             buffer: { type: "uniform" },
           },
-          ...(this.texture
-            ? [
-                {
-                  binding: 1,
-                  visibility: GPUShaderStage.FRAGMENT,
-                  texture: {},
-                },
-                {
-                  binding: 2,
-                  visibility: GPUShaderStage.FRAGMENT,
-                  sampler: {},
-                },
-              ]
-            : []),
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: {},
+          },
+          {
+            binding: 2,
+            visibility: GPUShaderStage.FRAGMENT,
+            sampler: {},
+          },
         ],
       });
-      globalResourceCache.setBindGroupLayout(
-        this._TAG,
-        this.bindGroupLayout,
-        this.texture ? "textured" : undefined,
-      );
+      globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
     }
 
     // 3. 调用父类的初始化，创建 Pipeline
@@ -101,18 +91,14 @@ export class PhongMaterial extends Material {
           binding: 0,
           resource: { buffer: this.uniformBuffer! },
         },
-        ...(this.texture
-          ? [
-              {
-                binding: 1,
-                resource: this.texture!.view!,
-              },
-              {
-                binding: 2,
-                resource: this.texture!.sampler!,
-              },
-            ]
-          : []),
+        {
+          binding: 1,
+          resource: this.texture!.view!,
+        },
+        {
+          binding: 2,
+          resource: this.texture!.sampler!,
+        },
       ],
     });
   }
