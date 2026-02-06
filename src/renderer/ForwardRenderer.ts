@@ -191,6 +191,10 @@ export class ForwardRenderer {
     if (obj.mesh!.normalBuffer) {
       pass.setVertexBuffer(1, obj.mesh!.normalBuffer!);
     }
+    if (obj.mesh!.uvBuffer) {
+      pass.setVertexBuffer(2, obj.mesh!.uvBuffer!);
+    }
+
     if (obj.mesh!.indexBuffer) {
       const indexFormat: GPUIndexFormat =
         obj.mesh!.indexBuffer instanceof Uint32Array ? "uint32" : "uint16";

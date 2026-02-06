@@ -36,7 +36,7 @@ export class Material {
   cullMode: GPUCullMode = "back";
   topology: GPUPrimitiveTopology = "triangle-list";
 
-  constructor(label = "") {
+  constructor(label = "Material") {
     this.label = label;
     this._ID = Material.generateId();
   }

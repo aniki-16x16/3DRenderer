@@ -16,12 +16,18 @@ export class SolidColorMaterial extends Material {
   uniformBuffer: GPUBuffer | null = null;
 
   constructor(props: Props) {
-    super(props.label);
+    super(props.label ?? "SolidColorMaterial");
     const { r, g, b, a = 1.0 } = props;
     this.color = new Float32Array([r, g, b, a]);
   }
 
-  initialize(device: GPUDevice, format: GPUTextureFormat, shader: Shader, frameLayout: GPUBindGroupLayout, modelLayout: GPUBindGroupLayout): void {
+  initialize(
+    device: GPUDevice,
+    format: GPUTextureFormat,
+    shader: Shader,
+    frameLayout: GPUBindGroupLayout,
+    modelLayout: GPUBindGroupLayout,
+  ): void {
     // 1. 创建 Uniform Buffer
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,

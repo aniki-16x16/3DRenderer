@@ -11,8 +11,9 @@ import shaderCode from "./shaders/phong.wgsl?raw";
 import "./style.css";
 import GUI from "lil-gui";
 import { angle2Rad } from "./utils/math";
-import { createRepeatNormals } from "./utils/mesh";
+import { createRepeatData } from "./utils/mesh";
 import { PhongMaterial } from "./materials/Phong";
+import { Texture } from "./graphics/Texture";
 
 async function main() {
   let engine: Engine | null = null;
@@ -51,10 +52,13 @@ async function main() {
   const renderer = new ForwardRenderer(engine);
 
   const basicShader = new Shader(engine.device!, "basic-shader", shaderCode);
+  const texture = new Texture();
+  await texture.load(engine.device!, "assets/kiana.png");
   const redMaterial = new PhongMaterial({
     label: "red-material",
     color: [0.8, 0.2, 0.2],
     specColor: [1.0, 1.0, 1.0],
+    texture,
   });
   redMaterial.initialize(
     engine.device!,
@@ -67,6 +71,7 @@ async function main() {
     label: "blue-material",
     color: [0.2, 0.2, 0.8],
     specColor: [1.0, 1.0, 1.0],
+    texture,
   });
   blueMaterial.initialize(
     engine.device!,
@@ -94,12 +99,12 @@ async function main() {
 
   // 2. 法线数据 (对应上面的 24 个顶点)
   const normals = new Float32Array([
-    ...createRepeatNormals([0, 0, 1], 4), // Front
-    ...createRepeatNormals([0, 0, -1], 4), // Back
-    ...createRepeatNormals([0, 1, 0], 4), // Top
-    ...createRepeatNormals([0, -1, 0], 4), // Bottom
-    ...createRepeatNormals([1, 0, 0], 4), // Right
-    ...createRepeatNormals([-1, 0, 0], 4), // Left
+    ...createRepeatData([0, 0, 1], 4), // Front
+    ...createRepeatData([0, 0, -1], 4), // Back
+    ...createRepeatData([0, 1, 0], 4), // Top
+    ...createRepeatData([0, -1, 0], 4), // Bottom
+    ...createRepeatData([1, 0, 0], 4), // Right
+    ...createRepeatData([-1, 0, 0], 4), // Left
   ]);
 
   // 3. 索引数据 (每个面 2 个三角形, 012 230 模式)
@@ -113,7 +118,12 @@ async function main() {
     16, 17, 18, 16, 18, 19, // Right
     20, 21, 22, 20, 22, 23, // Left
   ]);
-  const cubeMesh = new Mesh(positions, indices, normals);
+
+  // 4. UV 数据 (每个面 4 个顶点, 对应 positions)
+  const uvData = new Float32Array(
+    createRepeatData([0, 0, 1, 0, 1, 1, 0, 1], 6),
+  );
+  const cubeMesh = new Mesh(positions, indices, normals, uvData);
   cubeMesh.initialize(engine.device!);
 
   const cube1 = new Object3D("Cube1", cubeMesh, blueMaterial);

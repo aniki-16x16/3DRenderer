@@ -6,10 +6,12 @@ export class Mesh {
   vertexData: Float32Array;
   indexData: Uint16Array | Uint32Array | null;
   normalData: Float32Array | null = null;
+  uvData: Float32Array | null = null;
 
   vertexBuffer: GPUBuffer | null = null;
   indexBuffer: GPUBuffer | null = null;
   normalBuffer: GPUBuffer | null = null;
+  uvBuffer: GPUBuffer | null = null;
 
   vertexCount: number = 0;
   indexCount: number = 0;
@@ -22,6 +24,7 @@ export class Mesh {
     vertices: number[] | Float32Array,
     indices?: number[] | Uint16Array | Uint32Array,
     normals?: number[] | Float32Array,
+    uvs?: number[] | Float32Array,
   ) {
     this.vertexData =
       vertices instanceof Float32Array ? vertices : new Float32Array(vertices);
@@ -45,6 +48,10 @@ export class Mesh {
     if (normals) {
       this.normalData =
         normals instanceof Float32Array ? normals : new Float32Array(normals);
+    }
+
+    if (uvs) {
+      this.uvData = uvs instanceof Float32Array ? uvs : new Float32Array(uvs);
     }
 
     // 假设每个顶点只有 position(3)，后续如果引入标准材质需要改为 STRIDE 计算
@@ -97,6 +104,16 @@ export class Mesh {
       new Float32Array(this.normalBuffer.getMappedRange()).set(this.normalData);
       this.normalBuffer.unmap();
     }
+
+    if (this.uvData) {
+      this.uvBuffer = device.createBuffer({
+        size: this.uvData.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+      });
+      new Float32Array(this.uvBuffer.getMappedRange()).set(this.uvData);
+      this.uvBuffer.unmap();
+    }
   }
 
   /**
@@ -106,5 +123,6 @@ export class Mesh {
     if (this.vertexBuffer) this.vertexBuffer.destroy();
     if (this.indexBuffer) this.indexBuffer.destroy();
     if (this.normalBuffer) this.normalBuffer.destroy();
+    if (this.uvBuffer) this.uvBuffer.destroy();
   }
 }

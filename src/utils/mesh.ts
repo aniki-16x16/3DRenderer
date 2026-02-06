@@ -1,10 +1,10 @@
-export function createRepeatNormals(
-  normal: number[],
+export function createRepeatData(
+  data: number[],
   repeatCount: number,
 ): number[] {
-  const repeatedNormals: number[] = [];
+  const repeatedData: number[] = [];
   for (let i = 0; i < repeatCount; i++) {
-    repeatedNormals.push(...normal);
+    repeatedData.push(...data);
   }
-  return repeatedNormals;
+  return repeatedData;
 }
