@@ -14,7 +14,7 @@ struct VertexOut {
 struct CameraUniforms {
   vp_matrix: mat4x4f,
   position: vec3f,
-  time: f32,
+  padding: f32,
 }
 
 struct MaterialUniforms {
@@ -24,6 +24,9 @@ struct MaterialUniforms {
 }
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(1) var<uniform> light: CameraUniforms; // 复用 CameraUniforms 结构体
+@group(0) @binding(2) var shadow_map: texture_depth_2d;
+@group(0) @binding(3) var shadow_sampler: sampler_comparison;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(1) @binding(1) var texture: texture_2d<f32>;
 @group(1) @binding(2) var m_sampler: sampler;
@@ -46,13 +49,16 @@ fn vs_main(input: VertextIn) -> VertexOut {
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  let sun_position = vec3f(cos(camera.time), 1.0, sin(camera.time));
-  let light_dir = normalize(sun_position - input.world_position);
+  let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;
+  let ambient = AMBIENT_STRENGTH * base_color;
+
+  if (calculate_shadow(light.vp_matrix * vec4f(input.world_position, 1.0)) < 1.0) {
+    return vec4f(ambient, 1.0); // 在阴影中只返回环境光
+  }
+
+  let light_dir = normalize(light.position - input.world_position);
   let view_dir = normalize(camera.position - input.world_position);
   let normal = input.world_normal;
-  let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;
-
-  let ambient = AMBIENT_STRENGTH * base_color;
   
   let diff = max(dot(normal, light_dir), 0.0);
   let diffuse = diff * base_color;
@@ -63,4 +69,24 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
 
   let final_color = ambient + diffuse + specular;
   return vec4f(final_color, 1.0);
+}
+
+fn calculate_shadow(shadow_pos: vec4f) -> f32 {
+  let ndc = shadow_pos.xyz / shadow_pos.w;
+
+  // 边界检查 (可选但推荐)
+  // 如果点在光源视锥体外面，通常认为它没有阴影（或者全是阴影）
+  // 提示：检查 ndc.x, ndc.y, ndc.z 是否在 [0, 1] 或 [-1, 1] 范围内
+
+  var uv = ndc.xy * 0.5 + 0.5; // 将 NDC 转换为纹理坐标 (0-1)
+  uv = vec2f(uv.x, 1.0 - uv.y); // 翻转 y 轴（如果需要）
+  let current_depth = ndc.z;
+
+  // 返回 1.0 (被照亮) 或 0.0 (在阴影中)
+  return textureSampleCompare(
+      shadow_map, 
+      shadow_sampler, 
+      uv, 
+      current_depth - 0.005, // 深度偏移，避免自阴影
+  );
 }

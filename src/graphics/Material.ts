@@ -27,6 +27,8 @@ export class Material {
     return this._ID;
   }
 
+  protected _enableFragment = true;
+
   pipeline: GPURenderPipeline | null = null;
   label: string;
 
@@ -101,36 +103,36 @@ export class Material {
           entryPoint: "vs_main",
           buffers: this.getVertextBufferLayouts(),
         },
-        fragment: {
-          module: shader.module,
-          entryPoint: "fs_main",
-          targets: [
-            {
-              format: format,
-              blend: {
-                color: {
-                  srcFactor: "src-alpha",
-                  dstFactor: "one-minus-src-alpha",
-                  operation: "add",
-                },
-                alpha: {
-                  srcFactor: "one",
-                  dstFactor: "one-minus-src-alpha",
-                  operation: "add",
-                },
+        ...(this._enableFragment
+          ? {
+              fragment: {
+                module: shader.module,
+                entryPoint: "fs_main",
+                targets: [
+                  {
+                    format: format,
+                    blend: {
+                      color: {
+                        srcFactor: "src-alpha",
+                        dstFactor: "one-minus-src-alpha",
+                        operation: "add",
+                      },
+                      alpha: {
+                        srcFactor: "one",
+                        dstFactor: "one-minus-src-alpha",
+                        operation: "add",
+                      },
+                    },
+                  },
+                ],
               },
-            },
-          ],
-        },
+            }
+          : {}),
         primitive: {
           topology: this.topology,
           cullMode: this.cullMode,
         },
-        depthStencil: {
-          depthWriteEnabled: true,
-          depthCompare: "less",
-          format: "depth24plus",
-        },
+        depthStencil: this.getDepthStencilConfig(),
       });
       globalResourceCache.setRenderPipeline(this._TAG, this.pipeline);
     }
@@ -163,5 +165,13 @@ export class Material {
         ],
       },
     ];
+  }
+
+  protected getDepthStencilConfig(): GPUDepthStencilState {
+    return {
+      depthWriteEnabled: true,
+      depthCompare: "less",
+      format: "depth24plus",
+    };
   }
 }

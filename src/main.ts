@@ -14,6 +14,9 @@ import { PhongMaterial } from "./materials/Phong";
 import { initializeWhiteTexture } from "./textures/white";
 import { StandardLayouts } from "./graphics/StandardLayouts";
 import { OBJLoader } from "./loader/OBJLoader";
+import { shadowMaterial } from "./materials/Shadow";
+import shadowShaderCode from "./shaders/shadow.wgsl?raw";
+import { ParallelLight } from "./scene/ParallelLight";
 
 async function main() {
   let engine: Engine | null = null;
@@ -27,11 +30,19 @@ async function main() {
   }
   initializeWhiteTexture(engine.device!);
   StandardLayouts.initialize(engine.device!);
+  shadowMaterial.initialize(
+    engine.device!,
+    engine.format!,
+    new Shader(engine.device!, "shadow-shader", shadowShaderCode),
+    StandardLayouts.lightBindGroupLayout,
+  );
 
   const scene = new Scene();
   const camera = new Camera();
+  const light = new ParallelLight();
   camera.position = vec3.create(0, 2, 2);
   scene.activeCamera = camera;
+  scene.activeLight = light;
 
   // 添加 OrbitControls
   new OrbitControls(camera, engine.canvas as HTMLElement);
@@ -64,7 +75,23 @@ async function main() {
   bunnyMaterial.initialize(engine.device!, engine.format!, basicShader);
   const bunny = new Object3D("bunny", bunnyMesh, bunnyMaterial);
   bunny.initialize(engine.device!);
+  const bunny2 = new Object3D("bunny2", bunnyMesh, bunnyMaterial);
+  bunny2.initialize(engine.device!);
+  bunny2.transform.position = vec3.create(0.6, 0, 0.6);
+  bunny2.transform.rotation[1] = Math.PI / 4;
   scene.add(bunny);
+  scene.add(bunny2);
+
+  const planeMesh = await new OBJLoader().load("assets/obj/plane.obj");
+  planeMesh.initialize(engine.device!);
+  const planeMaterial = new PhongMaterial({
+    color: [0.5, 0.5, 0.5],
+  });
+  planeMaterial.initialize(engine.device!, engine.format!, basicShader);
+  const plane = new Object3D("plane", planeMesh, planeMaterial);
+  plane.initialize(engine.device!);
+  plane.transform.scale = vec3.create(10, 1, 10);
+  scene.add(plane);
 
   engine.resize();
   camera.aspect = engine.canvas.width / engine.canvas.height;
@@ -78,6 +105,11 @@ async function main() {
   };
 
   engine.onRender = () => {
+    const time = performance.now() * 0.0005;
+    vec3.copy(
+      vec3.create(Math.cos(time) * 5, 5, Math.sin(time) * 5),
+      light.position,
+    );
     renderer.render(scene);
   };
 

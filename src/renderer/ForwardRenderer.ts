@@ -2,6 +2,9 @@ import { Engine } from "../core/Engine";
 import { Scene } from "../scene/Scene";
 import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
+import { shadowMaterial } from "../materials/Shadow";
+
+const SHADOW_MAP_SIZE = 2048;
 
 // 暴露这两个 Layout，供 Material 使用
 // Group 0: Camera (Frame Level) -> StandardLayouts
@@ -14,21 +17,63 @@ export class ForwardRenderer {
   private cameraBindGroup: GPUBindGroup;
 
   private depthTexture: GPUTexture | null = null;
+  private depthTextureView: GPUTextureView | null = null;
+
+  public shadowMap: GPUTexture;
+  public shadowMapView: GPUTextureView;
+
+  private lightBuffer: GPUBuffer;
+  public lightBindGroup: GPUBindGroup;
 
   constructor(engine: Engine) {
     this.engine = engine;
     const device = engine.device!;
 
-    // 初始化全局 Camera 资源
+    this.shadowMap = device.createTexture({
+      label: "ShadowDepthTexture",
+      size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
+      format: "depth32float", // 阴影贴图通常需要更高精度
+      usage:
+        GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.shadowMapView = this.shadowMap.createView();
+
+    this.lightBuffer = device.createBuffer({
+      label: "LightBuffer",
+      size: (4 * 4 + 3 + 1) * 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.lightBindGroup = device.createBindGroup({
+      label: "LightBindGroup",
+      layout: StandardLayouts.lightBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer: this.lightBuffer } }],
+    });
+
     this.cameraBuffer = device.createBuffer({
       label: "GlobalCameraBuffer",
-      size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + time (float)
+      size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + padding (float)
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.cameraBindGroup = device.createBindGroup({
       label: "GlobalCameraBindGroup",
       layout: StandardLayouts.cameraBindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.cameraBuffer } }],
+      entries: [
+        { binding: 0, resource: { buffer: this.cameraBuffer } },
+        { binding: 1, resource: { buffer: this.lightBuffer } },
+        {
+          binding: 2,
+          resource: this.shadowMapView,
+        },
+        {
+          binding: 3,
+          resource: engine.device!.createSampler({
+            label: "ShadowMapSampler",
+            compare: "less",
+            minFilter: "linear",
+            magFilter: "linear",
+          }),
+        },
+      ],
     });
   }
 
@@ -42,53 +87,81 @@ export class ForwardRenderer {
       format: "depth24plus",
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
+    this.depthTextureView = this.depthTexture.createView();
   }
 
   render(scene: Scene) {
     const device = this.engine.device!;
     const context = this.engine.context!;
-    const camera = scene.activeCamera;
+    const { activeCamera: camera, activeLight: light } = scene;
 
     if (!camera) return;
 
-    camera.updateMatrix();
-    const vpMatrix = camera.getViewProjectionMatrix();
-    const bufferData = new Float32Array(16 + 3 + 1);
-    bufferData.set(vpMatrix, 0);
-    bufferData.set(camera.position, 16);
-    bufferData[19] = performance.now() / 1000; // time in seconds
-    device.queue.writeBuffer(this.cameraBuffer, 0, bufferData);
+    {
+      camera.updateMatrix();
+      const vpMatrix = camera.getViewProjectionMatrix();
+      const bufferData = new Float32Array(16 + 3);
+      bufferData.set(vpMatrix, 0);
+      bufferData.set(camera.position, 16);
+      device.queue.writeBuffer(this.cameraBuffer, 0, bufferData);
+    }
+
+    {
+      light!.updateMatrix();
+      const vpMatrix = light!.getViewProjectionMatrix();
+      const bufferData = new Float32Array(16 + 3);
+      bufferData.set(vpMatrix, 0);
+      bufferData.set(light!.position, 16);
+      device.queue.writeBuffer(this.lightBuffer, 0, bufferData);
+    }
 
     this.sortObjectsByMaterial(scene.objects);
 
     const textureView = context.getCurrentTexture().createView();
     const commandEncoder = device.createCommandEncoder();
 
-    const mainPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textureView,
-          clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
+    const shadowPass = commandEncoder.beginRenderPass({
+      colorAttachments: [],
       depthStencilAttachment: {
-        view: this.depthTexture!.createView(),
+        view: this.shadowMapView,
         depthClearValue: 1.0,
         depthLoadOp: "clear",
         depthStoreOp: "store",
       },
     });
+    const objectsWithShadow = [...scene.objects];
+    for (let i = 0; i < objectsWithShadow.length; i++) {
+      const obj = { ...objectsWithShadow[i] } as Object3D;
+      obj.material = shadowMaterial;
+      objectsWithShadow[i] = obj;
+    }
+    shadowPass.setBindGroup(0, this.lightBindGroup);
+    this.drawObjects(shadowPass, objectsWithShadow);
+    shadowPass.end();
+
+    const mainPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: textureView,
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+      depthStencilAttachment: {
+        view: this.depthTextureView!,
+        depthClearValue: 1.0,
+        depthLoadOp: "clear",
+        depthStoreOp: "store",
+      },
+    });
+    mainPass.setBindGroup(0, this.cameraBindGroup);
     this.drawObjects(mainPass, scene.objects);
     mainPass.end();
     device.queue.submit([commandEncoder.finish()]);
   }
 
   private drawObjects(pass: GPURenderPassEncoder, objects: Object3D[]) {
-    // 绑定 Group 0 (Frame Level) - 只需一次
-    pass.setBindGroup(0, this.cameraBindGroup);
-
     // 记录上一次使用的 Pipeline 和 Material BindGroup，避免重复绑定
     let currentPipeline: GPURenderPipeline | null = null;
     let currentMaterialGroup: GPUBindGroup | null = null;
