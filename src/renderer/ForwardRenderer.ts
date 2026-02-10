@@ -1,5 +1,5 @@
 import { Engine } from "../core/Engine";
-import { Scene } from "../scene/Scene";
+import { Scene } from "../core/Scene";
 import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
 import { shadowMaterial } from "../materials/Shadow";

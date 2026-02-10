@@ -1,4 +1,4 @@
-import { Object3D } from "../core/Object3D";
+import { Object3D } from "./Object3D";
 import { Camera } from "./Camera";
 import type { ParallelLight } from "./ParallelLight";
 
