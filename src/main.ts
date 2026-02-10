@@ -17,6 +17,8 @@ import { OBJLoader } from "./loader/OBJLoader";
 import { shadowMaterial } from "./materials/Shadow";
 import shadowShaderCode from "./shaders/shadow.wgsl?raw";
 import { ParallelLight } from "./scene/ParallelLight";
+import { initializeNormalTexture } from "./textures/normal";
+import { Texture } from "./graphics/Texture";
 
 async function main() {
   let engine: Engine | null = null;
@@ -29,6 +31,7 @@ async function main() {
     return;
   }
   initializeWhiteTexture(engine.device!);
+  initializeNormalTexture(engine.device!);
   StandardLayouts.initialize(engine.device!);
   shadowMaterial.initialize(
     engine.device!,
@@ -67,20 +70,19 @@ async function main() {
 
   const basicShader = new Shader(engine.device!, "basic-shader", shaderCode);
 
-  const bunnyMesh = await new OBJLoader().load("assets/obj/bunny_10k.obj");
-  bunnyMesh.initialize(engine.device!);
-  const bunnyMaterial = new PhongMaterial({
-    color: [1, 1, 1],
+  const cubeMesh = await new OBJLoader().load("assets/obj/cube.obj");
+  cubeMesh.initialize(engine.device!);
+  const normalTexture = new Texture("normal-texture");
+  await normalTexture.load(engine.device!, "assets/texture/wave_normal.png");
+  const cubeMaterial = new PhongMaterial({
+    color: [1.0, 1.0, 1.0],
+    normalTexture,
   });
-  bunnyMaterial.initialize(engine.device!, engine.format!, basicShader);
-  const bunny = new Object3D("bunny", bunnyMesh, bunnyMaterial);
-  bunny.initialize(engine.device!);
-  const bunny2 = new Object3D("bunny2", bunnyMesh, bunnyMaterial);
-  bunny2.initialize(engine.device!);
-  bunny2.transform.position = vec3.create(0.6, 0, 0.6);
-  bunny2.transform.rotation[1] = Math.PI / 4;
-  scene.add(bunny);
-  scene.add(bunny2);
+  cubeMaterial.initialize(engine.device!, engine.format!, basicShader);
+  const cube = new Object3D("cube", cubeMesh, cubeMaterial);
+  cube.transform.position = vec3.create(0, 1.0, 0);
+  cube.initialize(engine.device!);
+  scene.add(cube);
 
   const planeMesh = await new OBJLoader().load("assets/obj/plane.obj");
   planeMesh.initialize(engine.device!);
@@ -105,9 +107,9 @@ async function main() {
   };
 
   engine.onRender = () => {
-    const time = performance.now() * 0.0005;
+    const time = performance.now() * 0.0001;
     vec3.copy(
-      vec3.create(Math.cos(time) * 5, 5, Math.sin(time) * 5),
+      vec3.create(Math.cos(time) * 5, 3, Math.sin(time) * 5),
       light.position,
     );
     renderer.render(scene);

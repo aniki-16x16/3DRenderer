@@ -214,6 +214,9 @@ export class ForwardRenderer {
     if (obj.mesh!.uvBuffer) {
       pass.setVertexBuffer(2, obj.mesh!.uvBuffer!);
     }
+    if (obj.mesh!.tangentBuffer) {
+      pass.setVertexBuffer(3, obj.mesh!.tangentBuffer!);
+    }
 
     if (obj.mesh!.indexBuffer) {
       const indexFormat: GPUIndexFormat =

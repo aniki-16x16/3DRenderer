@@ -7,11 +7,13 @@ export class Mesh {
   indexData: Uint16Array | Uint32Array | null;
   normalData: Float32Array | null = null;
   uvData: Float32Array | null = null;
+  tangentData: Float32Array | null = null;
 
   vertexBuffer: GPUBuffer | null = null;
   indexBuffer: GPUBuffer | null = null;
   normalBuffer: GPUBuffer | null = null;
   uvBuffer: GPUBuffer | null = null;
+  tangentBuffer: GPUBuffer | null = null;
 
   vertexCount: number = 0;
   indexCount: number = 0;
@@ -54,9 +56,15 @@ export class Mesh {
       this.uvData = uvs instanceof Float32Array ? uvs : new Float32Array(uvs);
     }
 
-    // 假设每个顶点只有 position(3)，后续如果引入标准材质需要改为 STRIDE 计算
-    // 暂时简单处理：如果不传索引，则顶点数 = 数据长度 / 3 (假设只有 position)
-    // 这是一个临时假设，稍后我们定义 VertexLayout 时会加强这里
+    if (this.normalData && this.uvData && this.indexData) {
+      this.tangentData = calculateTangents(
+        this.vertexData,
+        this.normalData,
+        this.uvData,
+        this.indexData,
+      );
+    }
+
     this.vertexCount = this.vertexData.length / 3;
   }
 
@@ -114,6 +122,18 @@ export class Mesh {
       new Float32Array(this.uvBuffer.getMappedRange()).set(this.uvData);
       this.uvBuffer.unmap();
     }
+
+    if (this.tangentData) {
+      this.tangentBuffer = device.createBuffer({
+        size: this.tangentData.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+      });
+      new Float32Array(this.tangentBuffer.getMappedRange()).set(
+        this.tangentData,
+      );
+      this.tangentBuffer.unmap();
+    }
   }
 
   /**
@@ -124,5 +144,117 @@ export class Mesh {
     if (this.indexBuffer) this.indexBuffer.destroy();
     if (this.normalBuffer) this.normalBuffer.destroy();
     if (this.uvBuffer) this.uvBuffer.destroy();
+    if (this.tangentBuffer) this.tangentBuffer.destroy();
   }
+}
+
+/**
+ * 计算切线数据
+ * 需要位置、法线、UV 和索引数据
+ */
+export function calculateTangents(
+  positions: Float32Array,
+  normals: Float32Array,
+  uvs: Float32Array,
+  indices: Uint16Array | Uint32Array | number[],
+): Float32Array {
+  const tangents = new Float32Array((positions.length / 3) * 4); // vec4: x,y,z,w (w用于处理镜像)
+
+  // 临时累加数组
+  const tan1 = new Float32Array(positions.length);
+
+  // 1. 遍历每个三角形
+  for (let i = 0; i < indices.length; i += 3) {
+    const i1 = indices[i];
+    const i2 = indices[i + 1];
+    const i3 = indices[i + 2];
+
+    const x1 = positions[i1 * 3],
+      y1 = positions[i1 * 3 + 1],
+      z1 = positions[i1 * 3 + 2];
+    const x2 = positions[i2 * 3],
+      y2 = positions[i2 * 3 + 1],
+      z2 = positions[i2 * 3 + 2];
+    const x3 = positions[i3 * 3],
+      y3 = positions[i3 * 3 + 1],
+      z3 = positions[i3 * 3 + 2];
+
+    const u1 = uvs[i1 * 2],
+      v1 = uvs[i1 * 2 + 1];
+    const u2 = uvs[i2 * 2],
+      v2 = uvs[i2 * 2 + 1];
+    const u3 = uvs[i3 * 2],
+      v3 = uvs[i3 * 2 + 1];
+
+    // 2. 计算边的向量 (Delta Position 和 Delta UV)
+    const x10 = x2 - x1,
+      y10 = y2 - y1,
+      z10 = z2 - z1;
+    const x20 = x3 - x1,
+      y20 = y3 - y1,
+      z20 = z3 - z1;
+
+    const u10 = u2 - u1,
+      v10 = v2 - v1;
+    const u20 = u3 - u1,
+      v20 = v3 - v1;
+
+    // 3. 解方程求切线
+    // 这是一个线性方程组，求逆矩阵系数 r
+    const det = u10 * v20 - u20 * v10;
+    const r = det === 0 ? 0 : 1.0 / det;
+
+    const tx = (v20 * x10 - v10 * x20) * r;
+    const ty = (v20 * y10 - v10 * y20) * r;
+    const tz = (v20 * z10 - v10 * z20) * r;
+
+    // 累加到三角形的三个顶点上（平滑处理）
+    tan1[i1 * 3] += tx;
+    tan1[i1 * 3 + 1] += ty;
+    tan1[i1 * 3 + 2] += tz;
+    tan1[i2 * 3] += tx;
+    tan1[i2 * 3 + 1] += ty;
+    tan1[i2 * 3 + 2] += tz;
+    tan1[i3 * 3] += tx;
+    tan1[i3 * 3 + 1] += ty;
+    tan1[i3 * 3 + 2] += tz;
+  }
+
+  // 4. 正交化并写入结果
+  for (let i = 0; i < positions.length / 3; i++) {
+    const nx = normals[i * 3];
+    const ny = normals[i * 3 + 1];
+    const nz = normals[i * 3 + 2];
+
+    const tx = tan1[i * 3];
+    const ty = tan1[i * 3 + 1];
+    const tz = tan1[i * 3 + 2];
+
+    // Gram-Schmidt 正交化: t' = normalize(t - n * dot(n, t));
+    // 确保切线垂直于法线
+    const ndott = nx * tx + ny * ty + nz * tz;
+    let rx = tx - nx * ndott;
+    let ry = ty - ny * ndott;
+    let rz = tz - nz * ndott;
+
+    const len = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (len > 0) {
+      rx /= len;
+      ry /= len;
+      rz /= len;
+    }
+
+    // 5. 计算 W 分量 (Handedness)
+    // 用于处理镜像UV，判断 TBN 是否需要翻转
+    // w = (cross(n, t) dot t2) < 0 ? -1 : 1
+    // 这里为了简单暂时设为 1.0，复杂模型可能需要计算
+    const w = 1.0;
+
+    tangents[i * 4] = rx;
+    tangents[i * 4 + 1] = ry;
+    tangents[i * 4 + 2] = rz;
+    tangents[i * 4 + 3] = w;
+  }
+
+  return tangents;
 }

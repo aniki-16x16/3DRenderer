@@ -2,6 +2,7 @@ import { globalResourceCache } from "../core/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
+import { normalTexture } from "../textures/normal";
 import { whiteTexture } from "../textures/white";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
   specColor?: [number, number, number];
   shininess?: number;
   texture?: Texture;
+  normalTexture?: Texture;
 }
 export class PhongMaterial extends Material {
   protected _TAG: string = "Phong";
@@ -19,6 +21,7 @@ export class PhongMaterial extends Material {
   shininess: number = 32.0;
   uniformBuffer: GPUBuffer | null = null;
   texture: Texture | null = null;
+  normalTexture: Texture | null = null;
 
   constructor(props: Props) {
     super(props.label ?? "PhongMaterial");
@@ -27,6 +30,7 @@ export class PhongMaterial extends Material {
     this.specColor = new Float32Array(props.specColor ?? [1.0, 1.0, 1.0]);
     this.shininess = props.shininess ?? 32.0;
     this.texture = props.texture ?? whiteTexture;
+    this.normalTexture = props.normalTexture ?? normalTexture;
   }
 
   initialize(
@@ -71,6 +75,11 @@ export class PhongMaterial extends Material {
             visibility: GPUShaderStage.FRAGMENT,
             sampler: {},
           },
+          {
+            binding: 3,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: {},
+          },
         ],
       });
       globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
@@ -96,6 +105,10 @@ export class PhongMaterial extends Material {
         {
           binding: 2,
           resource: this.texture!.sampler!,
+        },
+        {
+          binding: 3,
+          resource: this.normalTexture!.view!,
         },
       ],
     });
@@ -130,6 +143,16 @@ export class PhongMaterial extends Material {
             shaderLocation: 2,
             offset: 0,
             format: "float32x2",
+          },
+        ],
+      },
+      {
+        arrayStride: 4 * 4, // tangent (vec4)
+        attributes: [
+          {
+            shaderLocation: 3,
+            offset: 0,
+            format: "float32x4",
           },
         ],
       },
