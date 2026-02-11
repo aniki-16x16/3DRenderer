@@ -5,7 +5,7 @@ export class StandardLayouts {
   // Group 2: Model / Object
   static modelBindGroupLayout: GPUBindGroupLayout;
 
-  static lightBindGroupLayout: GPUBindGroupLayout;
+  static shadowPassBindGroupLayout: GPUBindGroupLayout;
 
   static initialize(device: GPUDevice) {
     // 1. Group 0: Camera (ViewProjection + Position)
@@ -20,7 +20,7 @@ export class StandardLayouts {
         {
           binding: 1,
           visibility: GPUShaderStage.FRAGMENT,
-          buffer: { type: "uniform" },
+          buffer: { type: "read-only-storage" },
         },
         {
           binding: 2,
@@ -35,6 +35,11 @@ export class StandardLayouts {
           binding: 3,
           visibility: GPUShaderStage.FRAGMENT,
           sampler: { type: "comparison" },
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
         },
       ],
     });
@@ -51,13 +56,13 @@ export class StandardLayouts {
       ],
     });
 
-    // 3. Group 0: Light
-    this.lightBindGroupLayout = device.createBindGroupLayout({
-      label: "standard-light-bind-group-layout",
+    // 3. Group 0: Shadow Pass
+    this.shadowPassBindGroupLayout = device.createBindGroupLayout({
+      label: "standard-shadow-pass-bind-group-layout",
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          visibility: GPUShaderStage.VERTEX,
           buffer: { type: "uniform" },
         },
       ],

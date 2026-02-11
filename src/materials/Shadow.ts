@@ -13,6 +13,9 @@ export class ShadowMaterial extends Material {
       depthWriteEnabled: true,
       depthCompare: "less",
       format: "depth32float",
+      depthBias: 0.0002, // 深度偏移，避免自阴影
+      depthBiasSlopeScale: 5,
+      depthBiasClamp: 0.1,
     };
   }
 }

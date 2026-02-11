@@ -3,13 +3,10 @@ import { Scene } from "../core/Scene";
 import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
 import { shadowMaterial } from "../materials/Shadow";
+import { Light } from "../core/Light";
 
 const SHADOW_MAP_SIZE = 2048;
 
-// 暴露这两个 Layout，供 Material 使用
-// Group 0: Camera (Frame Level) -> StandardLayouts
-// Group 1: Material (Material Level) -> 由 Material 决定
-// Group 2: Model (Object Level) -> StandardLayouts
 export class ForwardRenderer {
   engine: Engine;
 
@@ -19,13 +16,17 @@ export class ForwardRenderer {
   private depthTexture: GPUTexture | null = null;
   private depthTextureView: GPUTextureView | null = null;
 
-  public shadowMap: GPUTexture;
-  public shadowMapView: GPUTextureView;
+  private shadowMap: GPUTexture;
+  private shadowMapView: GPUTextureView;
+  /**
+   * 存放光源的VP矩阵
+   */
+  private shadowPassBuffer: GPUBuffer;
+  private shadowPassBindGroup: GPUBindGroup;
 
   private lightBuffer: GPUBuffer;
-  public lightBindGroup: GPUBindGroup;
 
-  constructor(engine: Engine) {
+  constructor(engine: Engine, lightNum = 1) {
     this.engine = engine;
     const device = engine.device!;
 
@@ -37,18 +38,22 @@ export class ForwardRenderer {
         GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.shadowMapView = this.shadowMap.createView();
+    this.shadowPassBuffer = device.createBuffer({
+      label: "ShadowPassBuffer",
+      size: 4 * 4 * 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.shadowPassBindGroup = device.createBindGroup({
+      label: "ShadowPassBindGroup",
+      layout: StandardLayouts.shadowPassBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer: this.shadowPassBuffer } }],
+    });
 
     this.lightBuffer = device.createBuffer({
       label: "LightBuffer",
-      size: (4 * 4 + 3 + 1) * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      size: Light.DataSize * lightNum,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    this.lightBindGroup = device.createBindGroup({
-      label: "LightBindGroup",
-      layout: StandardLayouts.lightBindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.lightBuffer } }],
-    });
-
     this.cameraBuffer = device.createBuffer({
       label: "GlobalCameraBuffer",
       size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + padding (float)
@@ -73,6 +78,7 @@ export class ForwardRenderer {
             magFilter: "linear",
           }),
         },
+        { binding: 4, resource: { buffer: this.shadowPassBuffer } },
       ],
     });
   }
@@ -93,7 +99,7 @@ export class ForwardRenderer {
   render(scene: Scene) {
     const device = this.engine.device!;
     const context = this.engine.context!;
-    const { activeCamera: camera, activeLight: light } = scene;
+    const { activeCamera: camera, lights } = scene;
 
     if (!camera) return;
 
@@ -107,13 +113,21 @@ export class ForwardRenderer {
     }
 
     {
-      light!.syncShadowCamera();
-      light!.shadowCamera!.updateMatrix();
-      const vpMatrix = light!.shadowCamera!.getViewProjectionMatrix();
-      const bufferData = new Float32Array(16 + 3);
-      bufferData.set(vpMatrix, 0);
-      bufferData.set(light!.transform.positionRaw, 16);
-      device.queue.writeBuffer(this.lightBuffer, 0, bufferData);
+      for (let i = 0; i < lights.length; i++) {
+        const light = lights[i];
+        device.queue.writeBuffer(
+          this.lightBuffer,
+          i * Light.DataSize,
+          light.packData(),
+        );
+      }
+      const light = lights[0]; // 目前先只处理第一个光源的阴影
+      if (light.shadowCamera) {
+        light.syncShadowCamera();
+        light.shadowCamera.updateMatrix();
+        const shadowVP = light.shadowCamera.getViewProjectionMatrix();
+        device.queue.writeBuffer(this.shadowPassBuffer, 0, shadowVP.buffer);
+      }
     }
 
     this.sortObjectsByMaterial(scene.objects);
@@ -136,7 +150,7 @@ export class ForwardRenderer {
       obj.material = shadowMaterial;
       objectsWithShadow[i] = obj;
     }
-    shadowPass.setBindGroup(0, this.lightBindGroup);
+    shadowPass.setBindGroup(0, this.shadowPassBindGroup);
     this.drawObjects(shadowPass, objectsWithShadow);
     shadowPass.end();
 

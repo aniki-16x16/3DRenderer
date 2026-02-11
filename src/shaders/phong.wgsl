@@ -26,10 +26,18 @@ struct MaterialUniforms {
   shininess: f32,
 }
 
+struct LightData {
+  position: vec3f,
+  light_type: u32, // 0: 点光源, 1: 平行光, 2: 聚光灯
+  direction: vec3f,
+  range: f32,
+}
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
-@group(0) @binding(1) var<uniform> light: CameraUniforms; // 复用 CameraUniforms 结构体
+@group(0) @binding(1) var<storage, read> lights: array<LightData>;
 @group(0) @binding(2) var shadow_map: texture_depth_2d;
 @group(0) @binding(3) var shadow_sampler: sampler_comparison;
+@group(0) @binding(4) var<uniform> shadowVPMatrix: mat4x4f;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(1) @binding(1) var texture: texture_2d<f32>;
 @group(1) @binding(2) var m_sampler: sampler;
@@ -58,9 +66,6 @@ fn vs_main(input: VertextIn) -> VertexOut {
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  let light_dir = normalize(light.position - input.world_position);
-  let view_dir = normalize(camera.position - input.world_position);
-
   let N = normalize(input.n_world);
   let T = normalize(input.t_world - N * dot(N, input.t_world));
   let B = cross(N, T); 
@@ -70,19 +75,30 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
   let normal = normalize(normal_sample * 2.0 - 1.0); // 将法线从 [0,1] 转换到 [-1,1]
   let world_normal = normalize(tbn * normal); // 将切线空间的法线转换到世界空间
 
+  let view_dir = normalize(input.world_position - camera.position);
   let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;
   let ambient = AMBIENT_STRENGTH * base_color;
-  
-  let diff = max(dot(world_normal, light_dir), 0.0);
-  let diffuse = diff * base_color;
 
-  let half_vec = normalize(light_dir + view_dir);
-  let spec = pow(max(dot(world_normal, half_vec), 0.0), material.shininess);
-  let specular = SPECULAR_STRENGTH * spec * material.spec_color;
+  let light_num = arrayLength(&lights);
+  var final_color = vec3f(0.0);
+  for (var i = 0u; i < light_num; i++) {
+    let light = lights[i];
+    
+    let diff = max(dot(world_normal, -light.direction), 0.0);
+    let diffuse = diff * base_color;
 
-  let visibility = calculate_shadow(light.vp_matrix * vec4f(input.world_position, 1.0));
+    let half_vec = normalize(-light.direction - view_dir);
+    let spec = pow(max(dot(world_normal, half_vec), 0.0), material.shininess);
+    let specular = SPECULAR_STRENGTH * spec * material.spec_color;
+    // 暂时只计算第一个光源的阴影
+    var visibility = 1.0;
+    if (i == 0u) {
+      let shadow_pos = shadowVPMatrix * vec4f(input.world_position, 1.0);
+      visibility = calculate_shadow(shadow_pos);
+    }
+    final_color += ambient + (diffuse + specular) * visibility;
+  }
 
-  let final_color = ambient + (diffuse + specular) * visibility;
   return vec4f(final_color, 1.0);
 }
 
@@ -100,16 +116,16 @@ fn calculate_shadow(shadow_pos: vec4f) -> f32 {
   let size = textureDimensions(shadow_map);
   let texel_size = 1.0 / vec2f(size);
   var visibility = 0.0;
-  let bias = 0.005; // 深度偏移，避免自阴影
+  let bias = 0.001; // 深度偏移，避免自阴影
 
   for (var x = -1; x <= 1; x++) {
     for (var y = -1; y <= 1; y++) {
       let offset = vec2f(f32(x), f32(y)) * texel_size;
       visibility += textureSampleCompareLevel(
-          shadow_map, 
-          shadow_sampler, 
-          uv + offset, 
-          current_depth - bias
+        shadow_map, 
+        shadow_sampler, 
+        uv + offset, 
+        current_depth
       );
     }
   }

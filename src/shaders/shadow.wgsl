@@ -1,9 +1,9 @@
 struct VertexInput {
-    @location(0) position: vec3f,
+  @location(0) position: vec3f,
 };
 
 struct VertexOutput {
-    @builtin(position) position: vec4f,
+  @builtin(position) position: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> light: mat4x4f;
@@ -11,7 +11,7 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
-    var output: VertexOutput;
-    output.position = light * model * vec4f(input.position, 1.0);
-    return output;
+  var output: VertexOutput;
+  output.position = light * model * vec4f(input.position, 1.0);
+  return output;
 }

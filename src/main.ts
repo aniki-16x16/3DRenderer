@@ -37,7 +37,7 @@ async function main() {
     engine.device!,
     engine.format!,
     new Shader(engine.device!, "shadow-shader", shadowShaderCode),
-    StandardLayouts.lightBindGroupLayout,
+    StandardLayouts.shadowPassBindGroupLayout,
   );
 
   const scene = new Scene();
@@ -45,7 +45,8 @@ async function main() {
   const light = new ParallelLight();
   camera.position = vec3.create(0, 2, 2);
   scene.activeCamera = camera;
-  scene.activeLight = light;
+  light.target = vec3.create(0, 1, 0);
+  scene.add(light);
 
   // 添加 OrbitControls
   new OrbitControls(camera, engine.canvas as HTMLElement);
@@ -80,7 +81,7 @@ async function main() {
   });
   cubeMaterial.initialize(engine.device!, engine.format!, basicShader);
   const cube = new Object3D("cube", cubeMesh, cubeMaterial);
-  cube.transform.position = vec3.create(0, 1.0, 0);
+  cube.transform.position = vec3.create(0, 0.6, 0);
   cube.initialize(engine.device!);
   scene.add(cube);
 
@@ -107,9 +108,9 @@ async function main() {
   };
 
   engine.onRender = () => {
-    const time = performance.now() * 0.0001;
+    const time = performance.now() * 0.0003;
     vec3.copy(
-      vec3.create(Math.cos(time) * 5, 3, Math.sin(time) * 5),
+      vec3.create(Math.cos(time) * 5, 5, Math.sin(time) * 5),
       light.transform.position,
     );
     renderer.render(scene);
