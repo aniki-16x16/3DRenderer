@@ -1,11 +1,11 @@
 import { Object3D } from "./Object3D";
 import { Camera } from "./Camera";
-import type { ParallelLight } from "./ParallelLight";
+import type { Light } from "./Light";
 
 export class Scene {
   objects: Object3D[] = [];
   activeCamera: Camera | null = null;
-  activeLight: ParallelLight | null = null;
+  activeLight: Light | null = null;
 
   add(object: Object3D) {
     this.objects.push(object);

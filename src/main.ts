@@ -110,7 +110,7 @@ async function main() {
     const time = performance.now() * 0.0001;
     vec3.copy(
       vec3.create(Math.cos(time) * 5, 3, Math.sin(time) * 5),
-      light.position,
+      light.transform.position,
     );
     renderer.render(scene);
   };

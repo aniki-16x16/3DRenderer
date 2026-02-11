@@ -1,6 +1,8 @@
 import { mat4, vec3 } from "wgpu-matrix";
 import { angle2Rad } from "../utils/math";
 
+export type CameraType = "perspective" | "orthographic";
+
 export class Camera {
   position = vec3.create(0, 0, 0);
   target = vec3.create(0, 0, 0);
@@ -10,22 +12,37 @@ export class Camera {
   private _viewMatrix = mat4.create();
   private _viewProjectionMatrix = mat4.create();
 
+  type: CameraType = "perspective";
   fov: number = angle2Rad(45);
   aspect: number = 1.0;
   near: number = 0.1;
   far: number = 100.0;
+  orthoSize: number = 10.0;
 
   updateMatrix() {
     mat4.identity(this._viewMatrix);
     mat4.lookAt(this.position, this.target, this.up, this._viewMatrix);
     mat4.identity(this._projectionMatrix);
-    mat4.perspective(
-      this.fov,
-      this.aspect,
-      this.near,
-      this.far,
-      this._projectionMatrix,
-    );
+    if (this.type === "perspective") {
+      mat4.perspective(
+        this.fov,
+        this.aspect,
+        this.near,
+        this.far,
+        this._projectionMatrix,
+      );
+    } else {
+      const { orthoSize: size } = this;
+      mat4.ortho(
+        -size,
+        size,
+        -size,
+        size,
+        this.near,
+        this.far,
+        this._projectionMatrix,
+      );
+    }
     mat4.multiply(
       this._projectionMatrix,
       this._viewMatrix,

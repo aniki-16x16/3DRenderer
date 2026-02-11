@@ -43,8 +43,11 @@ export class Transform {
   }
 
   getMatrix() {
-    // 只有在脏的时候才更新
     this.updateMatrix();
     return this._modelMatrix;
+  }
+
+  get positionRaw() {
+    return vec3.create(this.position[0], this.position[1], this.position[2]);
   }
 }

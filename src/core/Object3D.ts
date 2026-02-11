@@ -1,11 +1,9 @@
-import { Transform } from "./Transform";
 import type { Material } from "../graphics/Material";
 import type { Mesh } from "../graphics/Mesh";
 import { StandardLayouts } from "../graphics/StandardLayouts";
+import { Node3D } from "./Node3D";
 
-export class Object3D {
-  name: string;
-  transform = new Transform();
+export class Object3D extends Node3D {
   mesh: Mesh | null = null;
   material: Material | null = null;
 
@@ -14,7 +12,7 @@ export class Object3D {
   modelBindGroup: GPUBindGroup | null = null;
 
   constructor(name: string, mesh: Mesh, material: Material) {
-    this.name = name;
+    super(name);
     this.mesh = mesh;
     this.material = material;
   }

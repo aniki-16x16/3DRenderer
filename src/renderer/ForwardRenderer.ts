@@ -107,11 +107,12 @@ export class ForwardRenderer {
     }
 
     {
-      light!.updateMatrix();
-      const vpMatrix = light!.getViewProjectionMatrix();
+      light!.syncShadowCamera();
+      light!.shadowCamera!.updateMatrix();
+      const vpMatrix = light!.shadowCamera!.getViewProjectionMatrix();
       const bufferData = new Float32Array(16 + 3);
       bufferData.set(vpMatrix, 0);
-      bufferData.set(light!.position, 16);
+      bufferData.set(light!.transform.positionRaw, 16);
       device.queue.writeBuffer(this.lightBuffer, 0, bufferData);
     }
 
