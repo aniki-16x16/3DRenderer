@@ -26,12 +26,7 @@ export class Texture {
       { bytesPerRow: 4 },
       [1, 1],
     );
-    this.sampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-      addressModeU: "repeat",
-      addressModeV: "repeat",
-    });
+    this.sampler = linearSampler;
     this.view = this.texture.createView();
   }
 
@@ -59,12 +54,28 @@ export class Texture {
       [source.width, source.height], // 复制区域大小
     );
 
-    this.sampler = device.createSampler({
-      magFilter: "linear", // 放大时：线性插值 (平滑)
-      minFilter: "linear", // 缩小时：线性插值
-      addressModeU: "repeat", // UV 超出 0-1 时重复
-      addressModeV: "repeat",
-    });
+    this.sampler = linearSampler;
     this.view = this.texture.createView();
   }
+}
+
+export let linearSampler: GPUSampler | null = null;
+export let comparisonSampler: GPUSampler | null = null;
+
+export function initializeSamplers(device: GPUDevice) {
+  linearSampler = device.createSampler({
+    label: "LinearSampler",
+    magFilter: "linear",
+    minFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
+  });
+  comparisonSampler = device.createSampler({
+    label: "ComparisonSampler",
+    compare: "less",
+    minFilter: "linear",
+    magFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
+  });
 }

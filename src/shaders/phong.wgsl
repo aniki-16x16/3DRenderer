@@ -35,13 +35,13 @@ struct LightData {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> lights: array<LightData>;
-@group(0) @binding(2) var shadow_map: texture_depth_2d;
-@group(0) @binding(3) var shadow_sampler: sampler_comparison;
-@group(0) @binding(4) var<uniform> shadowVPMatrix: mat4x4f;
+@group(0) @binding(2) var linear_sampler: sampler;
+@group(0) @binding(3) var shadow_map: texture_depth_2d;
+@group(0) @binding(4) var shadow_sampler: sampler_comparison;
+@group(0) @binding(5) var<uniform> shadowVPMatrix: mat4x4f;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(1) @binding(1) var texture: texture_2d<f32>;
-@group(1) @binding(2) var m_sampler: sampler;
-@group(1) @binding(3) var normal_texture: texture_2d<f32>;
+@group(1) @binding(2) var normal_texture: texture_2d<f32>;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
 const AMBIENT_STRENGTH = 0.1;
@@ -71,12 +71,12 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
   let B = cross(N, T); 
   let tbn = mat3x3f(T, B, N);
 
-  let normal_sample = textureSample(normal_texture, m_sampler, input.uv).rgb;
+  let normal_sample = textureSample(normal_texture, linear_sampler, input.uv).rgb;
   let normal = normalize(normal_sample * 2.0 - 1.0); // 将法线从 [0,1] 转换到 [-1,1]
   let world_normal = normalize(tbn * normal); // 将切线空间的法线转换到世界空间
 
   let view_dir = normalize(input.world_position - camera.position);
-  let base_color = textureSample(texture, m_sampler, input.uv).rgb * material.color.rgb;
+  let base_color = textureSample(texture, linear_sampler, input.uv).rgb * material.color.rgb;
   let ambient = AMBIENT_STRENGTH * base_color;
 
   let light_num = arrayLength(&lights);

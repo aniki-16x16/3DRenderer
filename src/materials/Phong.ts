@@ -73,11 +73,6 @@ export class PhongMaterial extends Material {
           {
             binding: 2,
             visibility: GPUShaderStage.FRAGMENT,
-            sampler: {},
-          },
-          {
-            binding: 3,
-            visibility: GPUShaderStage.FRAGMENT,
             texture: {},
           },
         ],
@@ -104,10 +99,6 @@ export class PhongMaterial extends Material {
         },
         {
           binding: 2,
-          resource: this.texture!.sampler!,
-        },
-        {
-          binding: 3,
           resource: this.normalTexture!.view!,
         },
       ],

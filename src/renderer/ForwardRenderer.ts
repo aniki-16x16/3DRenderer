@@ -4,6 +4,7 @@ import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
 import { shadowMaterial } from "../materials/Shadow";
 import { Light } from "../core/Light";
+import { comparisonSampler, linearSampler } from "../graphics/Texture";
 
 const SHADOW_MAP_SIZE = 2048;
 
@@ -67,18 +68,17 @@ export class ForwardRenderer {
         { binding: 1, resource: { buffer: this.lightBuffer } },
         {
           binding: 2,
-          resource: this.shadowMapView,
+          resource: linearSampler!,
         },
         {
           binding: 3,
-          resource: engine.device!.createSampler({
-            label: "ShadowMapSampler",
-            compare: "less",
-            minFilter: "linear",
-            magFilter: "linear",
-          }),
+          resource: this.shadowMapView,
         },
-        { binding: 4, resource: { buffer: this.shadowPassBuffer } },
+        {
+          binding: 4,
+          resource: comparisonSampler!,
+        },
+        { binding: 5, resource: { buffer: this.shadowPassBuffer } },
       ],
     });
   }

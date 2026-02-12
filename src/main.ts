@@ -18,7 +18,7 @@ import { shadowMaterial } from "./materials/Shadow";
 import shadowShaderCode from "./shaders/shadow.wgsl?raw";
 import { ParallelLight } from "./core/ParallelLight";
 import { initializeNormalTexture } from "./textures/normal";
-import { Texture } from "./graphics/Texture";
+import { initializeSamplers, Texture } from "./graphics/Texture";
 
 async function main() {
   let engine: Engine | null = null;
@@ -30,6 +30,7 @@ async function main() {
     console.error("Failed to initialize the engine:", error);
     return;
   }
+  initializeSamplers(engine.device!);
   initializeWhiteTexture(engine.device!);
   initializeNormalTexture(engine.device!);
   StandardLayouts.initialize(engine.device!);
