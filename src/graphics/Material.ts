@@ -1,13 +1,14 @@
-import { globalResourceCache } from "../core/ResourceCache";
+import { getResourceCache } from "../core/ResourceCache";
 import { Shader } from "./Shader";
 import { StandardLayouts } from "./StandardLayouts";
+import { positionOnlyVertexBufferLayouts } from "./StandardVertexLayout";
 
 /**
  * 材质基类
  * 负责管理 Pipeline Layout 和 BindGroup
  *
  * 架构约定：
- * Group 0: Frame Level (Camera) - 由 Renderer 提供 Layout
+ * Group 0: Scene / Frame Level - 由 Renderer 提供 Layout
  * Group 1: Material Level (Material) - 由 Material 自己定义和提供 Layout & BindGroup
  * Group 2: Model Level (Model) - 由 Renderer 提供 Layout
  */
@@ -32,7 +33,7 @@ export class Material {
   pipeline: GPURenderPipeline | null = null;
   label: string;
 
-  // Group 1 的资源
+  // Layout/Pipeline 可在同一 Device 内共享，BindGroup 则属于材质实例。
   bindGroupLayout: GPUBindGroupLayout | null = null;
   bindGroup: GPUBindGroup | null = null;
 
@@ -49,21 +50,24 @@ export class Material {
    * @param device
    * @param format
    * @param shader
-   * @param frameLayout Group 0 Layout (Camera)
+   * @param sceneLayout Group 0 Layout (Camera / Lights / Pass resources)
    * @param modelLayout Group 2 Layout (Model)
    */
   initialize(
     device: GPUDevice,
     format: GPUTextureFormat,
     shader: Shader,
-    frameLayout: GPUBindGroupLayout = StandardLayouts.cameraBindGroupLayout,
+    sceneLayout: GPUBindGroupLayout = StandardLayouts.sceneBindGroupLayout,
     modelLayout: GPUBindGroupLayout = StandardLayouts.modelBindGroupLayout,
   ) {
+    const resourceCache = getResourceCache(device);
+
     // 1. 创建 Material 自己的 Layout (Group 1)
     // 默认空 Layout (如果子类不重写，表示该材质无需 Uniform)
     if (!this.bindGroupLayout) {
-      const cachedBindLayout = globalResourceCache.getBindGroupLayout(
-        this._TAG,
+      const materialLayoutKey = `material-layout:${this._TAG}`;
+      const cachedBindLayout = resourceCache.getBindGroupLayout(
+        materialLayoutKey,
       );
       if (cachedBindLayout) {
         this.bindGroupLayout = cachedBindLayout;
@@ -72,26 +76,47 @@ export class Material {
           label: `${this.label}-empty-layout`,
           entries: [], // 空
         });
-        globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
+        resourceCache.setBindGroupLayout(
+          materialLayoutKey,
+          this.bindGroupLayout,
+        );
       }
     }
 
     // 2. 创建 PipelineLayout (0: Frame, 1: Material, 2: Model)
-    const cachedPipelineLayout = globalResourceCache.getPipelineLayout(
-      this._TAG,
-    );
+    const pipelineLayoutKey = [
+      "pipeline-layout",
+      resourceCache.getResourceId(sceneLayout),
+      resourceCache.getResourceId(this.bindGroupLayout),
+      resourceCache.getResourceId(modelLayout),
+    ].join(":");
+    const cachedPipelineLayout =
+      resourceCache.getPipelineLayout(pipelineLayoutKey);
     const pipelineLayout =
       cachedPipelineLayout ??
       device.createPipelineLayout({
         label: `${this.label}-pipeline-layout`,
-        bindGroupLayouts: [frameLayout, this.bindGroupLayout, modelLayout],
+        bindGroupLayouts: [sceneLayout, this.bindGroupLayout, modelLayout],
       });
     if (!cachedPipelineLayout) {
-      globalResourceCache.setPipelineLayout(this._TAG, pipelineLayout);
+      resourceCache.setPipelineLayout(pipelineLayoutKey, pipelineLayout);
     }
 
     // 3. 创建 Pipeline
-    const cachedPipeline = globalResourceCache.getRenderPipeline(this._TAG);
+    const vertexBufferLayouts = this.getVertexBufferLayouts();
+    const depthStencil = this.getDepthStencilConfig();
+    const pipelineKey = JSON.stringify({
+      tag: this._TAG,
+      shaderId: shader.ID,
+      format,
+      pipelineLayout: resourceCache.getResourceId(pipelineLayout),
+      enableFragment: this._enableFragment,
+      topology: this.topology,
+      cullMode: this.cullMode,
+      vertexBufferLayouts,
+      depthStencil,
+    });
+    const cachedPipeline = resourceCache.getRenderPipeline(pipelineKey);
     if (cachedPipeline) {
       this.pipeline = cachedPipeline;
     } else {
@@ -101,7 +126,7 @@ export class Material {
         vertex: {
           module: shader.module,
           entryPoint: "vs_main",
-          buffers: this.getVertextBufferLayouts(),
+          buffers: vertexBufferLayouts,
         },
         ...(this._enableFragment
           ? {
@@ -132,9 +157,9 @@ export class Material {
           topology: this.topology,
           cullMode: this.cullMode,
         },
-        depthStencil: this.getDepthStencilConfig(),
+        depthStencil,
       });
-      globalResourceCache.setRenderPipeline(this._TAG, this.pipeline);
+      resourceCache.setRenderPipeline(pipelineKey, this.pipeline);
     }
 
     // 4. 创建默认的 BindGroup (Group 1)
@@ -152,19 +177,14 @@ export class Material {
     });
   }
 
-  protected getVertextBufferLayouts(): GPUVertexBufferLayout[] {
-    return [
-      {
-        arrayStride: 3 * 4,
-        attributes: [
-          {
-            shaderLocation: 0,
-            offset: 0,
-            format: "float32x3",
-          },
-        ],
-      },
-    ];
+  protected getVertexBufferLayouts(): GPUVertexBufferLayout[] {
+    return positionOnlyVertexBufferLayouts;
+  }
+
+  destroy() {
+    this.bindGroup = null;
+    this.bindGroupLayout = null;
+    this.pipeline = null;
   }
 
   protected getDepthStencilConfig(): GPUDepthStencilState {

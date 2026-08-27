@@ -1,7 +1,8 @@
-import { globalResourceCache } from "../core/ResourceCache";
+import { getResourceCache } from "../core/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
+import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
 import { normalTexture } from "../textures/normal";
 import { whiteTexture } from "../textures/white";
 
@@ -39,6 +40,7 @@ export class PhongMaterial extends Material {
     shader: Shader,
   ): void {
     // 1. 创建 Uniform Buffer
+    this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,
       size: (4 + 3 + 1) * 4, // vec4 + vec3 + float
@@ -53,7 +55,10 @@ export class PhongMaterial extends Material {
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
-    const cachedBindLayout = globalResourceCache.getBindGroupLayout(this._TAG);
+    const resourceCache = getResourceCache(device);
+    const materialLayoutKey = `material-layout:${this._TAG}`;
+    const cachedBindLayout =
+      resourceCache.getBindGroupLayout(materialLayoutKey);
     if (cachedBindLayout) {
       this.bindGroupLayout = cachedBindLayout;
     } else {
@@ -77,7 +82,7 @@ export class PhongMaterial extends Material {
           },
         ],
       });
-      globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
+      resourceCache.setBindGroupLayout(materialLayoutKey, this.bindGroupLayout);
     }
 
     // 3. 调用父类的初始化，创建 Pipeline
@@ -105,48 +110,13 @@ export class PhongMaterial extends Material {
     });
   }
 
-  protected getVertextBufferLayouts(): GPUVertexBufferLayout[] {
-    return [
-      {
-        arrayStride: 3 * 4, // position
-        attributes: [
-          {
-            shaderLocation: 0,
-            offset: 0,
-            format: "float32x3",
-          },
-        ],
-      },
-      {
-        arrayStride: 3 * 4, // normal
-        attributes: [
-          {
-            shaderLocation: 1,
-            offset: 0,
-            format: "float32x3",
-          },
-        ],
-      },
-      {
-        arrayStride: 2 * 4, // uv
-        attributes: [
-          {
-            shaderLocation: 2,
-            offset: 0,
-            format: "float32x2",
-          },
-        ],
-      },
-      {
-        arrayStride: 4 * 4, // tangent (vec4)
-        attributes: [
-          {
-            shaderLocation: 3,
-            offset: 0,
-            format: "float32x4",
-          },
-        ],
-      },
-    ];
+  protected getVertexBufferLayouts(): GPUVertexBufferLayout[] {
+    return standardVertexBufferLayouts;
+  }
+
+  override destroy() {
+    this.uniformBuffer?.destroy();
+    this.uniformBuffer = null;
+    super.destroy();
   }
 }

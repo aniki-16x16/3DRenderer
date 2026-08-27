@@ -1,6 +1,8 @@
 export class StandardLayouts {
-  // Group 0: Frame / Camera
-  static cameraBindGroupLayout: GPUBindGroupLayout;
+  private static device: GPUDevice | null = null;
+
+  // Group 0: Scene / Frame
+  static sceneBindGroupLayout: GPUBindGroupLayout;
 
   // Group 2: Model / Object
   static modelBindGroupLayout: GPUBindGroupLayout;
@@ -8,9 +10,12 @@ export class StandardLayouts {
   static shadowPassBindGroupLayout: GPUBindGroupLayout;
 
   static initialize(device: GPUDevice) {
-    // 1. Group 0: Camera (ViewProjection + Position)
-    this.cameraBindGroupLayout = device.createBindGroupLayout({
-      label: "standard-camera-bind-group-layout",
+    if (this.device === device) return;
+    this.device = device;
+
+    // 1. Group 0: Scene (Camera + Lights + Shadow resources)
+    this.sceneBindGroupLayout = device.createBindGroupLayout({
+      label: "standard-scene-bind-group-layout",
       entries: [
         {
           binding: 0,

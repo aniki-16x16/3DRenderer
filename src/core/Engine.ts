@@ -73,6 +73,14 @@ export class Engine {
     }
   }
 
+  destroy(): void {
+    this.stop();
+    this.context?.unconfigure();
+    this.onUpdate = undefined;
+    this.onRender = undefined;
+    this.onResize = undefined;
+  }
+
   /**
    * 调整画布大小
    * 建议在这里处理 devicePixelRatio，确保高清屏渲染清晰度

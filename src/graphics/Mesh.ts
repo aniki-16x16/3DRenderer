@@ -5,6 +5,7 @@
 export class Mesh {
   vertexData: Float32Array;
   indexData: Uint16Array | Uint32Array | null;
+  indexFormat: GPUIndexFormat | null = null;
   normalData: Float32Array | null = null;
   uvData: Float32Array | null = null;
   tangentData: Float32Array | null = null;
@@ -35,15 +36,22 @@ export class Mesh {
       if (indices instanceof Uint16Array || indices instanceof Uint32Array) {
         this.indexData = indices;
       } else {
-        // 如果索引超过 65535，使用 Uint32
+        // 索引格式取决于最大索引值，而不是索引数量。
+        const maxIndex = indices.reduce(
+          (currentMax, index) => Math.max(currentMax, index),
+          0,
+        );
         this.indexData =
-          indices.length > 65535
+          maxIndex > 65535
             ? new Uint32Array(indices)
             : new Uint16Array(indices);
       }
+      this.indexFormat =
+        this.indexData instanceof Uint32Array ? "uint32" : "uint16";
       this.indexCount = indices.length;
     } else {
       this.indexData = null;
+      this.indexFormat = null;
       this.indexCount = 0;
     }
 
@@ -73,6 +81,8 @@ export class Mesh {
    * @param device WebGPU 设备
    */
   initialize(device: GPUDevice) {
+    this.destroy();
+
     // 创建顶点缓冲
     this.vertexBuffer = device.createBuffer({
       size: this.vertexData.byteLength,
@@ -84,11 +94,10 @@ export class Mesh {
 
     // 创建索引缓冲 (如果有)
     if (this.indexData) {
+      // mappedAtCreation 要求缓冲区大小按 4 字节对齐。
+      const alignedSize = Math.ceil(this.indexData.byteLength / 4) * 4;
       this.indexBuffer = device.createBuffer({
-        size: this.indexData.byteLength,
-        // 需要补齐 4 字节对齐吗？WebGPU 对 buffer size 通常要求 4 字节倍数
-        // 你的数据如果是 Uint16 且长度为奇数，byteLength 是偶数但可能不是 4 的倍数
-        // 为了安全，向上取整到 4 的倍数
+        size: alignedSize,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         mappedAtCreation: true,
       });
@@ -145,6 +154,11 @@ export class Mesh {
     if (this.normalBuffer) this.normalBuffer.destroy();
     if (this.uvBuffer) this.uvBuffer.destroy();
     if (this.tangentBuffer) this.tangentBuffer.destroy();
+    this.vertexBuffer = null;
+    this.indexBuffer = null;
+    this.normalBuffer = null;
+    this.uvBuffer = null;
+    this.tangentBuffer = null;
   }
 }
 

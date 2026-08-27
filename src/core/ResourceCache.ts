@@ -1,4 +1,16 @@
 export class ResourceCache {
+  private resourceIds = new WeakMap<object, number>();
+  private nextResourceId = 1;
+
+  getResourceId(resource: object): number {
+    const cachedId = this.resourceIds.get(resource);
+    if (cachedId !== undefined) return cachedId;
+
+    const id = this.nextResourceId++;
+    this.resourceIds.set(resource, id);
+    return id;
+  }
+
   private bindGroupLayouts: Map<string, GPUBindGroupLayout> = new Map();
   getBindGroupLayout(
     key: string,
@@ -44,8 +56,18 @@ export class ResourceCache {
     this.renderPipelines.set(getFinalKey(key, subType), pipeline);
   }
 }
-export const globalResourceCache = new ResourceCache();
+
+const deviceResourceCaches = new WeakMap<GPUDevice, ResourceCache>();
+
+export function getResourceCache(device: GPUDevice): ResourceCache {
+  const cached = deviceResourceCaches.get(device);
+  if (cached) return cached;
+
+  const cache = new ResourceCache();
+  deviceResourceCaches.set(device, cache);
+  return cache;
+}
 
 function getFinalKey(key: string, subType?: string): string {
-  return `${key}${subType ?? ""}`;
+  return subType === undefined ? key : `${key}::${subType}`;
 }

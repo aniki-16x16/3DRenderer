@@ -5,6 +5,8 @@ import { StandardLayouts } from "../graphics/StandardLayouts";
 import { shadowMaterial } from "../materials/Shadow";
 import { Light } from "../core/Light";
 import { comparisonSampler, linearSampler } from "../graphics/Texture";
+import type { Material } from "../graphics/Material";
+import { StandardVertexBufferSlot } from "../graphics/StandardVertexLayout";
 
 const SHADOW_MAP_SIZE = 2048;
 
@@ -12,7 +14,7 @@ export class ForwardRenderer {
   engine: Engine;
 
   private cameraBuffer: GPUBuffer;
-  private cameraBindGroup: GPUBindGroup;
+  private sceneBindGroup: GPUBindGroup;
 
   private depthTexture: GPUTexture | null = null;
   private depthTextureView: GPUTextureView | null = null;
@@ -60,9 +62,9 @@ export class ForwardRenderer {
       size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + padding (float)
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.cameraBindGroup = device.createBindGroup({
-      label: "GlobalCameraBindGroup",
-      layout: StandardLayouts.cameraBindGroupLayout,
+    this.sceneBindGroup = device.createBindGroup({
+      label: "GlobalSceneBindGroup",
+      layout: StandardLayouts.sceneBindGroupLayout,
       entries: [
         { binding: 0, resource: { buffer: this.cameraBuffer } },
         { binding: 1, resource: { buffer: this.lightBuffer } },
@@ -94,6 +96,16 @@ export class ForwardRenderer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.depthTextureView = this.depthTexture.createView();
+  }
+
+  destroy() {
+    this.depthTexture?.destroy();
+    this.shadowMap.destroy();
+    this.cameraBuffer.destroy();
+    this.lightBuffer.destroy();
+    this.shadowPassBuffer.destroy();
+    this.depthTexture = null;
+    this.depthTextureView = null;
   }
 
   render(scene: Scene) {
@@ -130,7 +142,7 @@ export class ForwardRenderer {
       }
     }
 
-    this.sortObjectsByMaterial(scene.objects);
+    const renderObjects = this.sortObjectsByMaterial(scene.objects);
 
     const textureView = context.getCurrentTexture().createView();
     const commandEncoder = device.createCommandEncoder();
@@ -144,14 +156,8 @@ export class ForwardRenderer {
         depthStoreOp: "store",
       },
     });
-    const objectsWithShadow = [...scene.objects];
-    for (let i = 0; i < objectsWithShadow.length; i++) {
-      const obj = { ...objectsWithShadow[i] } as Object3D;
-      obj.material = shadowMaterial;
-      objectsWithShadow[i] = obj;
-    }
     shadowPass.setBindGroup(0, this.shadowPassBindGroup);
-    this.drawObjects(shadowPass, objectsWithShadow);
+    this.drawObjects(shadowPass, renderObjects, shadowMaterial);
     shadowPass.end();
 
     const mainPass = commandEncoder.beginRenderPass({
@@ -170,36 +176,41 @@ export class ForwardRenderer {
         depthStoreOp: "store",
       },
     });
-    mainPass.setBindGroup(0, this.cameraBindGroup);
-    this.drawObjects(mainPass, scene.objects);
+    mainPass.setBindGroup(0, this.sceneBindGroup);
+    this.drawObjects(mainPass, renderObjects);
     mainPass.end();
     device.queue.submit([commandEncoder.finish()]);
   }
 
-  private drawObjects(pass: GPURenderPassEncoder, objects: Object3D[]) {
+  private drawObjects(
+    pass: GPURenderPassEncoder,
+    objects: Object3D[],
+    overrideMaterial?: Material,
+  ) {
     // 记录上一次使用的 Pipeline 和 Material BindGroup，避免重复绑定
     let currentPipeline: GPURenderPipeline | null = null;
     let currentMaterialGroup: GPUBindGroup | null = null;
 
     for (const obj of objects) {
+      const material = overrideMaterial ?? obj.material;
       if (
         !obj.mesh ||
-        !obj.material ||
+        !material ||
         !obj.mesh.vertexBuffer ||
-        !obj.material.pipeline
+        !material.pipeline
       ) {
         continue;
       }
 
       // 切换 Pipeline
-      if (currentPipeline !== obj.material.pipeline) {
-        pass.setPipeline(obj.material.pipeline);
-        currentPipeline = obj.material.pipeline;
+      if (currentPipeline !== material.pipeline) {
+        pass.setPipeline(material.pipeline);
+        currentPipeline = material.pipeline;
       }
 
       // 绑定 Group 1 (Material Level)
       // 假设 Material 类有一个 bindGroup 属性
-      const matGroup = obj.material.bindGroup;
+      const matGroup = material.bindGroup;
       if (matGroup && currentMaterialGroup !== matGroup) {
         pass.setBindGroup(1, matGroup);
         currentMaterialGroup = matGroup;
@@ -222,21 +233,28 @@ export class ForwardRenderer {
     pass.setBindGroup(2, obj.modelBindGroup);
 
     // 绘制
-    pass.setVertexBuffer(0, obj.mesh!.vertexBuffer!);
+    pass.setVertexBuffer(
+      StandardVertexBufferSlot.Position,
+      obj.mesh!.vertexBuffer!,
+    );
     if (obj.mesh!.normalBuffer) {
-      pass.setVertexBuffer(1, obj.mesh!.normalBuffer!);
+      pass.setVertexBuffer(
+        StandardVertexBufferSlot.Normal,
+        obj.mesh!.normalBuffer!,
+      );
     }
     if (obj.mesh!.uvBuffer) {
-      pass.setVertexBuffer(2, obj.mesh!.uvBuffer!);
+      pass.setVertexBuffer(StandardVertexBufferSlot.UV, obj.mesh!.uvBuffer!);
     }
     if (obj.mesh!.tangentBuffer) {
-      pass.setVertexBuffer(3, obj.mesh!.tangentBuffer!);
+      pass.setVertexBuffer(
+        StandardVertexBufferSlot.Tangent,
+        obj.mesh!.tangentBuffer!,
+      );
     }
 
     if (obj.mesh!.indexBuffer) {
-      const indexFormat: GPUIndexFormat =
-        obj.mesh!.indexBuffer instanceof Uint32Array ? "uint32" : "uint16";
-      pass.setIndexBuffer(obj.mesh!.indexBuffer!, indexFormat);
+      pass.setIndexBuffer(obj.mesh!.indexBuffer!, obj.mesh!.indexFormat!);
       pass.drawIndexed(obj.mesh!.indexCount, 1, 0, 0, 0);
       return;
     }
@@ -244,7 +262,7 @@ export class ForwardRenderer {
   }
 
   private sortObjectsByMaterial(objects: Object3D[]): Object3D[] {
-    return objects.sort((a, b) => {
+    return [...objects].sort((a, b) => {
       if (!a.material || !b.material) return 0;
       if (a.material.TAG === b.material.TAG) {
         return a.material.ID - b.material.ID;

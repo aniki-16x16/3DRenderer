@@ -1,19 +1,43 @@
 import { mat4, vec3, type Vec3, type Mat4 } from "wgpu-matrix";
 
 export class Transform {
-  // 使用 Proxy 包装内部状态
-  position: Vec3;
-  rotation: Vec3;
-  scale: Vec3;
+  // 始终保留同一个 Proxy，避免整体赋值后绕过脏标记。
+  private _position: Vec3;
+  private _rotation: Vec3;
+  private _scale: Vec3;
 
   // 缓存矩阵和脏标记
   private _modelMatrix: Mat4 = mat4.create();
   private _dirty: boolean = true;
 
   constructor() {
-    this.position = this._makeReactive(vec3.create(0, 0, 0));
-    this.rotation = this._makeReactive(vec3.create(0, 0, 0)); // Euler angles
-    this.scale = this._makeReactive(vec3.create(1, 1, 1));
+    this._position = this._makeReactive(vec3.create(0, 0, 0));
+    this._rotation = this._makeReactive(vec3.create(0, 0, 0)); // Euler angles
+    this._scale = this._makeReactive(vec3.create(1, 1, 1));
+  }
+
+  get position(): Vec3 {
+    return this._position;
+  }
+
+  set position(value: Vec3) {
+    vec3.copy(value, this._position);
+  }
+
+  get rotation(): Vec3 {
+    return this._rotation;
+  }
+
+  set rotation(value: Vec3) {
+    vec3.copy(value, this._rotation);
+  }
+
+  get scale(): Vec3 {
+    return this._scale;
+  }
+
+  set scale(value: Vec3) {
+    vec3.copy(value, this._scale);
   }
 
   private _makeReactive(target: Vec3): Vec3 {

@@ -1,4 +1,4 @@
-import { globalResourceCache } from "../core/ResourceCache";
+import { getResourceCache } from "../core/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 
@@ -27,6 +27,7 @@ export class SolidColorMaterial extends Material {
     shader: Shader,
   ): void {
     // 1. 创建 Uniform Buffer
+    this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,
       size: 4 * 4, // vec4
@@ -37,7 +38,10 @@ export class SolidColorMaterial extends Material {
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
-    const cachedBindLayout = globalResourceCache.getBindGroupLayout(this._TAG);
+    const resourceCache = getResourceCache(device);
+    const materialLayoutKey = `material-layout:${this._TAG}`;
+    const cachedBindLayout =
+      resourceCache.getBindGroupLayout(materialLayoutKey);
     if (cachedBindLayout) {
       this.bindGroupLayout = cachedBindLayout;
     } else {
@@ -51,7 +55,7 @@ export class SolidColorMaterial extends Material {
           },
         ],
       });
-      globalResourceCache.setBindGroupLayout(this._TAG, this.bindGroupLayout);
+      resourceCache.setBindGroupLayout(materialLayoutKey, this.bindGroupLayout);
     }
 
     // 3. 调用父类的初始化，创建 Pipeline
@@ -69,5 +73,11 @@ export class SolidColorMaterial extends Material {
         },
       ],
     });
+  }
+
+  override destroy() {
+    this.uniformBuffer?.destroy();
+    this.uniformBuffer = null;
+    super.destroy();
   }
 }

@@ -18,6 +18,8 @@ export class Object3D extends Node3D {
   }
 
   initialize(device: GPUDevice) {
+    this.destroy();
+
     this.modelBuffer = device.createBuffer({
       label: `ModelBuffer-${this.name}`,
       size: 16 * 4,
@@ -33,5 +35,11 @@ export class Object3D extends Node3D {
         },
       ],
     });
+  }
+
+  destroy() {
+    this.modelBuffer?.destroy();
+    this.modelBuffer = null;
+    this.modelBindGroup = null;
   }
 }

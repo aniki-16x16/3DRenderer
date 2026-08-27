@@ -1,23 +1,42 @@
+export type TextureColorSpace = "linear" | "srgb";
+export type ImageTextureFormat = "rgba8unorm" | "rgba8unorm-srgb";
+
+export interface TextureOptions {
+  colorSpace?: TextureColorSpace;
+  format?: ImageTextureFormat;
+}
+
 export class Texture {
   texture: GPUTexture | null = null;
   view: GPUTextureView | null = null;
-  sampler: GPUSampler | null = null;
 
   label: string;
+  readonly colorSpace: TextureColorSpace;
+  readonly format: ImageTextureFormat;
 
-  constructor(label: string = "Texture") {
+  constructor(label: string = "Texture", options: TextureOptions = {}) {
     this.label = label;
+    this.format =
+      options.format ??
+      (options.colorSpace === "srgb" ? "rgba8unorm-srgb" : "rgba8unorm");
+    const formatColorSpace = this.format.endsWith("-srgb") ? "srgb" : "linear";
+    if (options.colorSpace && options.colorSpace !== formatColorSpace) {
+      throw new Error(
+        `Texture format ${this.format} conflicts with ${options.colorSpace} color space.`,
+      );
+    }
+    this.colorSpace = formatColorSpace;
   }
 
   initialize(
     device: GPUDevice,
     color: [number, number, number, number] = [255, 0, 255, 255],
   ) {
-    // 预先创建一个空的 GPUTexture，稍后会用实际图片数据替换它
+    this.destroy();
     this.texture = device.createTexture({
       label: this.label,
       size: [1, 1], // 初始大小为 1x1，稍后会更新
-      format: "rgba8unorm",
+      format: this.format,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
     device.queue.writeTexture(
@@ -26,7 +45,6 @@ export class Texture {
       { bytesPerRow: 4 },
       [1, 1],
     );
-    this.sampler = linearSampler;
     this.view = this.texture.createView();
   }
 
@@ -35,27 +53,40 @@ export class Texture {
    */
   async load(device: GPUDevice, url: string) {
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load texture: ${url} (${response.status})`);
+    }
     const blob = await response.blob();
     // 使用 createImageBitmap 是 WebGPU 推荐的方式，它比 Image 元素更高效
     const source = await createImageBitmap(blob);
 
-    this.texture = device.createTexture({
-      label: this.label,
-      size: [source.width, source.height],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    device.queue.copyExternalImageToTexture(
-      { source }, // 图片数据来源
-      { texture: this.texture }, // 目标 GPUTexture
-      [source.width, source.height], // 复制区域大小
-    );
+    this.destroy();
+    try {
+      this.texture = device.createTexture({
+        label: this.label,
+        size: [source.width, source.height],
+        format: this.format,
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      device.queue.copyExternalImageToTexture(
+        { source },
+        { texture: this.texture },
+        [source.width, source.height],
+      );
+    } finally {
+      source.close();
+    }
 
-    this.sampler = linearSampler;
     this.view = this.texture.createView();
+  }
+
+  destroy() {
+    this.texture?.destroy();
+    this.texture = null;
+    this.view = null;
   }
 }
 

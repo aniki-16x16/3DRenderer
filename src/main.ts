@@ -33,7 +33,6 @@ async function main() {
   initializeSamplers(engine.device!);
   initializeWhiteTexture(engine.device!);
   initializeNormalTexture(engine.device!);
-  StandardLayouts.initialize(engine.device!);
   shadowMaterial.initialize(
     engine.device!,
     engine.format!,
@@ -50,7 +49,7 @@ async function main() {
   scene.add(light);
 
   // 添加 OrbitControls
-  new OrbitControls(camera, engine.canvas as HTMLElement);
+  const controls = new OrbitControls(camera, engine.canvas as HTMLElement);
 
   // --- GUI Setup ---
   const gui = new GUI();
@@ -74,7 +73,9 @@ async function main() {
 
   const cubeMesh = await new OBJLoader().load("assets/obj/cube.obj");
   cubeMesh.initialize(engine.device!);
-  const normalTexture = new Texture("normal-texture");
+  const normalTexture = new Texture("normal-texture", {
+    colorSpace: "linear",
+  });
   await normalTexture.load(engine.device!, "assets/texture/wave_normal.png");
   const cubeMaterial = new PhongMaterial({
     color: [1.0, 1.0, 1.0],
@@ -100,10 +101,11 @@ async function main() {
   engine.resize();
   camera.aspect = engine.canvas.width / engine.canvas.height;
   renderer.resize(engine.canvas.width, engine.canvas.height);
-  window.addEventListener("resize", () => {
+  const handleResize = () => {
     engine.resize();
     renderer.resize(engine.canvas.width, engine.canvas.height);
-  });
+  };
+  window.addEventListener("resize", handleResize);
   engine.onResize = (width, height) => {
     camera.aspect = width / height;
   };
@@ -116,6 +118,26 @@ async function main() {
     );
     renderer.render(scene);
   };
+
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      window.removeEventListener("resize", handleResize);
+      controls.dispose();
+      renderer.destroy();
+      cube.destroy();
+      plane.destroy();
+      cubeMesh.destroy();
+      planeMesh.destroy();
+      cubeMaterial.destroy();
+      planeMaterial.destroy();
+      normalTexture.destroy();
+      shadowMaterial.destroy();
+      gui.destroy();
+      engine.destroy();
+    },
+    { once: true },
+  );
 
   engine.start();
 }
