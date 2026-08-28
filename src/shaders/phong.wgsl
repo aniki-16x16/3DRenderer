@@ -29,6 +29,8 @@ struct MaterialUniforms {
 struct LightData {
   position: vec3f,
   light_type: u32, // 0: 点光源, 1: 平行光, 2: 聚光灯
+  color: vec3f,
+  intensity: f32,
   direction: vec3f,
   range: f32,
 }

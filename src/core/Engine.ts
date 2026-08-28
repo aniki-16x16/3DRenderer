@@ -17,7 +17,7 @@ export class Engine {
   private _lastFrameTime: number = 0;
 
   // 外部回调
-  onUpdate?: (deltaTime: number) => void;
+  onUpdate?: (deltaTime: number, totalTime: number) => void;
   onRender?: () => void;
   onResize?: (width: number, height: number) => void;
 
@@ -110,7 +110,7 @@ export class Engine {
 
     // 逻辑更新
     if (this.onUpdate) {
-      this.onUpdate(deltaTime);
+      this.onUpdate(deltaTime, now / 1000);
     }
 
     // 渲染调用

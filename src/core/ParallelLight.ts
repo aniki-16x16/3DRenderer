@@ -21,7 +21,7 @@ export class ParallelLight extends Light {
   override packData(): ArrayBuffer {
     const buffer = super.packData();
 
-    const floatView = new Float32Array(buffer, 4 * 4, 3);
+    const floatView = new Float32Array(buffer, 8 * 4, 3);
     floatView.set(
       vec3.normalize(vec3.subtract(this.target, this.transform.position)),
     );

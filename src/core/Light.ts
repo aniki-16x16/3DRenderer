@@ -14,11 +14,7 @@ export class Light extends Node3D {
   intensity: number;
   shadowCamera: Camera | null = null;
 
-  /**
-   * 数据布局 position(vec3f) + type(uint32) + direction(vec3f) + padding(uint32)
-   * 共 4 + 4 = 8 个 float (32 bytes)
-   */
-  static DataSize = (4 + 4) * 4;
+  static DataSize = (4 + 4 + 4) * 4;
 
   protected type: LightType = LightTypeEnum.Point;
 
@@ -41,6 +37,8 @@ export class Light extends Node3D {
     const uintView = new Uint32Array(buffer, 3 * 4, 1);
     floatView.set(this.transform.positionRaw);
     uintView.set([this.type]);
+    const floatView2 = new Float32Array(buffer, 4 * 4, 4);
+    floatView2.set([...this.color, this.intensity]);
 
     return buffer;
   }

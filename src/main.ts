@@ -6,11 +6,10 @@ import { ForwardRenderer } from "./renderer/ForwardRenderer";
 import { Camera } from "./core/Camera";
 import { Scene } from "./core/Scene";
 import { OrbitControls } from "./controls/OrbitControls";
-import shaderCode from "./shaders/phong.wgsl?raw";
+import pbrShaderCode from "./shaders/pbr.wgsl?raw";
 import "./style.css";
 import GUI from "lil-gui";
 import { angle2Rad } from "./utils/math";
-import { PhongMaterial } from "./materials/Phong";
 import { initializeWhiteTexture } from "./textures/white";
 import { StandardLayouts } from "./graphics/StandardLayouts";
 import { OBJLoader } from "./loader/OBJLoader";
@@ -18,7 +17,8 @@ import { shadowMaterial } from "./materials/Shadow";
 import shadowShaderCode from "./shaders/shadow.wgsl?raw";
 import { ParallelLight } from "./core/ParallelLight";
 import { initializeNormalTexture } from "./textures/normal";
-import { initializeSamplers, Texture } from "./graphics/Texture";
+import { initializeSamplers } from "./graphics/Texture";
+import { PBRMaterial } from "./materials/PBR";
 
 async function main() {
   let engine: Engine | null = null;
@@ -42,10 +42,12 @@ async function main() {
 
   const scene = new Scene();
   const camera = new Camera();
-  const light = new ParallelLight();
-  camera.position = vec3.create(0, 2, 2);
+  const light = new ParallelLight([1, 1, 1], 3);
+  camera.position = vec3.create(0, 4, 8);
+  camera.target = vec3.create(0, 0.5, 0);
   scene.activeCamera = camera;
-  light.target = vec3.create(0, 1, 0);
+  light.transform.position = vec3.create(4, 5, 4);
+  light.target = vec3.create(0, 0.5, 0);
   scene.add(light);
 
   // 添加 OrbitControls
@@ -69,33 +71,57 @@ async function main() {
 
   const renderer = new ForwardRenderer(engine);
 
-  const basicShader = new Shader(engine.device!, "basic-shader", shaderCode);
+  const pbrShader = new Shader(engine.device!, "pbr-shader", pbrShaderCode);
 
-  const cubeMesh = await new OBJLoader().load("assets/obj/cube.obj");
-  cubeMesh.initialize(engine.device!);
-  const normalTexture = new Texture("normal-texture", {
-    colorSpace: "linear",
-  });
-  await normalTexture.load(engine.device!, "assets/texture/wave_normal.png");
-  const cubeMaterial = new PhongMaterial({
-    color: [1.0, 1.0, 1.0],
-    normalTexture,
-  });
-  cubeMaterial.initialize(engine.device!, engine.format!, basicShader);
-  const cube = new Object3D("cube", cubeMesh, cubeMaterial);
-  cube.transform.position = vec3.create(0, 0.6, 0);
-  cube.initialize(engine.device!);
-  scene.add(cube);
+  const bunnyMesh = await new OBJLoader().load("assets/obj/bunny_10k.obj");
+  bunnyMesh.initialize(engine.device!);
+  const roughnessLevels = [0.05, 0.25, 0.5, 0.75, 1.0];
+  const metallicLevels = [0.0, 1.0];
+  const columnSpacing = 1.3;
+  const rowSpacing = 1.5;
+  const bunnyObjects: Object3D[] = [];
+  const bunnyMaterials: PBRMaterial[] = [];
+
+  for (let row = 0; row < metallicLevels.length; row++) {
+    for (let column = 0; column < roughnessLevels.length; column++) {
+      const metallic = metallicLevels[row];
+      const roughness = roughnessLevels[column];
+      const material = new PBRMaterial({
+        label: `PBR-m${metallic}-r${roughness}`,
+        baseColor: [0.2, 0.3, 1.0, 1.0],
+        metallic,
+        roughness,
+      });
+      material.initialize(engine.device!, engine.format!, pbrShader);
+
+      const bunny = new Object3D(
+        `bunny-m${metallic}-r${roughness}`,
+        bunnyMesh,
+        material,
+      );
+      bunny.transform.position = vec3.create(
+        (column - (roughnessLevels.length - 1) / 2) * columnSpacing,
+        0,
+        (row - (metallicLevels.length - 1) / 2) * rowSpacing,
+      );
+      bunny.initialize(engine.device!);
+      scene.add(bunny);
+      bunnyObjects.push(bunny);
+      bunnyMaterials.push(material);
+    }
+  }
 
   const planeMesh = await new OBJLoader().load("assets/obj/plane.obj");
   planeMesh.initialize(engine.device!);
-  const planeMaterial = new PhongMaterial({
-    color: [0.5, 0.5, 0.5],
+  const planeMaterial = new PBRMaterial({
+    baseColor: [0.5, 0.5, 0.5, 1.0],
+    metallic: 0,
+    roughness: 1,
   });
-  planeMaterial.initialize(engine.device!, engine.format!, basicShader);
+  planeMaterial.initialize(engine.device!, engine.format!, pbrShader);
   const plane = new Object3D("plane", planeMesh, planeMaterial);
   plane.initialize(engine.device!);
-  plane.transform.scale = vec3.create(10, 1, 10);
+  plane.transform.scale = vec3.create(10, 10, 10);
   scene.add(plane);
 
   engine.resize();
@@ -111,12 +137,16 @@ async function main() {
   };
 
   engine.onRender = () => {
-    const time = performance.now() * 0.0003;
-    vec3.copy(
-      vec3.create(Math.cos(time) * 5, 5, Math.sin(time) * 5),
-      light.transform.position,
-    );
     renderer.render(scene);
+  };
+
+  engine.onUpdate = (_deltaTime, totalTime) => {
+    const t = totalTime * 0.3;
+    light.transform.position = vec3.create(
+      Math.sin(t) * 4,
+      5,
+      Math.cos(t) * 4,
+    );
   };
 
   window.addEventListener(
@@ -125,13 +155,12 @@ async function main() {
       window.removeEventListener("resize", handleResize);
       controls.dispose();
       renderer.destroy();
-      cube.destroy();
+      for (const bunny of bunnyObjects) bunny.destroy();
       plane.destroy();
-      cubeMesh.destroy();
+      bunnyMesh.destroy();
       planeMesh.destroy();
-      cubeMaterial.destroy();
+      for (const material of bunnyMaterials) material.destroy();
       planeMaterial.destroy();
-      normalTexture.destroy();
       shadowMaterial.destroy();
       gui.destroy();
       engine.destroy();
