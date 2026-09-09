@@ -17,7 +17,7 @@ struct VertexOut {
 struct CameraUniforms {
   vp_matrix: mat4x4f,
   position: vec3f,
-  padding: f32,
+  light_count: u32,
 }
 
 struct MaterialUniforms {
@@ -81,7 +81,7 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
   let base_color = textureSample(texture, linear_sampler, input.uv).rgb * material.color.rgb;
   let ambient = AMBIENT_STRENGTH * base_color;
 
-  let light_num = arrayLength(&lights);
+  let light_num = camera.light_count;
   var final_color = vec3f(0.0);
   for (var i = 0u; i < light_num; i++) {
     let light = lights[i];

@@ -44,6 +44,7 @@ export class Engine {
       throw new Error("Failed to get GPU device.");
     }
     this.context = this.canvas.getContext("webgpu");
+    if (!this.context) throw new Error("Failed to get WebGPU canvas context");
     this.format = navigator.gpu.getPreferredCanvasFormat();
     this.context!.configure({
       device: this.device!,
@@ -76,6 +77,9 @@ export class Engine {
   destroy(): void {
     this.stop();
     this.context?.unconfigure();
+    this.device?.destroy();
+    this.device = null;
+    this.context = null;
     this.onUpdate = undefined;
     this.onRender = undefined;
     this.onResize = undefined;
@@ -87,8 +91,8 @@ export class Engine {
    */
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
-    const width = Math.floor(this.canvas.clientWidth * dpr);
-    const height = Math.floor(this.canvas.clientHeight * dpr);
+    const width = Math.max(1, Math.floor(this.canvas.clientWidth * dpr));
+    const height = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
     this.canvas.width = width;
     this.canvas.height = height;
 
@@ -118,6 +122,6 @@ export class Engine {
       this.onRender();
     }
 
-    this._animationId = requestAnimationFrame(() => this._run());
+    if (this._isRunning) this._animationId = requestAnimationFrame(() => this._run());
   }
 }

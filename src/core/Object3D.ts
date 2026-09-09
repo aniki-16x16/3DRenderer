@@ -1,3 +1,4 @@
+import { modelLayout } from "../graphics/BufferLayouts";
 import type { Material } from "../graphics/Material";
 import type { Mesh } from "../graphics/Mesh";
 import { StandardLayouts } from "../graphics/StandardLayouts";
@@ -7,7 +8,7 @@ export class Object3D extends Node3D {
   mesh: Mesh | null = null;
   material: Material | null = null;
 
-  // 模型矩阵资源 (Group 1)
+  // 模型矩阵资源 (Group 2)
   modelBuffer: GPUBuffer | null = null;
   modelBindGroup: GPUBindGroup | null = null;
 
@@ -22,12 +23,12 @@ export class Object3D extends Node3D {
 
     this.modelBuffer = device.createBuffer({
       label: `ModelBuffer-${this.name}`,
-      size: 16 * 4,
+      size: modelLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.modelBindGroup = device.createBindGroup({
       label: `ModelBindGroup-${this.name}`,
-      layout: StandardLayouts.modelBindGroupLayout,
+      layout: StandardLayouts.forDevice(device).modelBindGroupLayout,
       entries: [
         {
           binding: 0,

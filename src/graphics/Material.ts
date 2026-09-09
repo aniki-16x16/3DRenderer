@@ -1,4 +1,4 @@
-import { getResourceCache } from "../core/ResourceCache";
+import { getResourceCache } from "./ResourceCache";
 import { Shader } from "./Shader";
 import { StandardLayouts } from "./StandardLayouts";
 import { positionOnlyVertexBufferLayouts } from "./StandardVertexLayout";
@@ -57,8 +57,8 @@ export class Material {
     device: GPUDevice,
     format: GPUTextureFormat,
     shader: Shader,
-    sceneLayout: GPUBindGroupLayout = StandardLayouts.sceneBindGroupLayout,
-    modelLayout: GPUBindGroupLayout = StandardLayouts.modelBindGroupLayout,
+    sceneLayout: GPUBindGroupLayout = StandardLayouts.forDevice(device).sceneBindGroupLayout,
+    modelLayout: GPUBindGroupLayout = StandardLayouts.forDevice(device).modelBindGroupLayout,
   ) {
     const resourceCache = getResourceCache(device);
 

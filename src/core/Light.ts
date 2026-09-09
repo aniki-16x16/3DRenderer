@@ -1,3 +1,4 @@
+import { lightLayout } from "../graphics/BufferLayouts";
 import { Node3D } from "./Node3D";
 import type { Camera } from "./Camera";
 import { vec3, type Vec3 } from "wgpu-matrix";
@@ -14,7 +15,7 @@ export class Light extends Node3D {
   intensity: number;
   shadowCamera: Camera | null = null;
 
-  static DataSize = (4 + 4 + 4) * 4;
+  static readonly DataSize = lightLayout.byteSize;
 
   protected type: LightType = LightTypeEnum.Point;
 
@@ -31,15 +32,6 @@ export class Light extends Node3D {
   }
 
   packData(): ArrayBuffer {
-    const buffer = new ArrayBuffer(Light.DataSize);
-
-    const floatView = new Float32Array(buffer, 0, 3);
-    const uintView = new Uint32Array(buffer, 3 * 4, 1);
-    floatView.set(this.transform.positionRaw);
-    uintView.set([this.type]);
-    const floatView2 = new Float32Array(buffer, 4 * 4, 4);
-    floatView2.set([...this.color, this.intensity]);
-
-    return buffer;
+    return lightLayout.create({ position: this.transform.positionRaw, light_type: this.type, color: this.color, intensity: this.intensity });
   }
 }

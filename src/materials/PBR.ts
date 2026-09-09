@@ -1,4 +1,5 @@
-import { getResourceCache } from "../core/ResourceCache";
+import { pbrLayout } from "../graphics/BufferLayouts";
+import { getResourceCache } from "../graphics/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
@@ -33,15 +34,11 @@ export class PBRMaterial extends Material {
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,
-      size: (4 + 2 + 2) * 4,
+      size: pbrLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    new Float32Array(this.uniformBuffer.getMappedRange()).set([
-      ...this.baseColor!,
-      this.metallic,
-      this.roughness,
-    ]);
+    pbrLayout.write(this.uniformBuffer.getMappedRange(), { base_color: this.baseColor, metallic: this.metallic, roughness: this.roughness });
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)

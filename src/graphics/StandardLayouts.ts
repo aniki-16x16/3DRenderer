@@ -1,17 +1,21 @@
 export class StandardLayouts {
-  private static device: GPUDevice | null = null;
+  private static instances = new WeakMap<GPUDevice, StandardLayouts>();
+
+  static forDevice(device: GPUDevice): StandardLayouts {
+    let layouts = this.instances.get(device);
+    if (!layouts) { layouts = new StandardLayouts(device); this.instances.set(device, layouts); }
+    return layouts;
+  }
 
   // Group 0: Scene / Frame
-  static sceneBindGroupLayout: GPUBindGroupLayout;
+  readonly sceneBindGroupLayout: GPUBindGroupLayout;
 
   // Group 2: Model / Object
-  static modelBindGroupLayout: GPUBindGroupLayout;
+  readonly modelBindGroupLayout: GPUBindGroupLayout;
 
-  static shadowPassBindGroupLayout: GPUBindGroupLayout;
+  readonly shadowPassBindGroupLayout: GPUBindGroupLayout;
 
-  static initialize(device: GPUDevice) {
-    if (this.device === device) return;
-    this.device = device;
+  private constructor(device: GPUDevice) {
 
     // 1. Group 0: Scene (Camera + Lights + Shadow resources)
     this.sceneBindGroupLayout = device.createBindGroupLayout({

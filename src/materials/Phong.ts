@@ -1,10 +1,11 @@
-import { getResourceCache } from "../core/ResourceCache";
+import { phongLayout } from "../graphics/BufferLayouts";
+import { getResourceCache } from "../graphics/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
 import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
-import { normalTexture } from "../textures/normal";
-import { whiteTexture } from "../textures/white";
+import { getNormalTexture } from "../textures/normal";
+import { getWhiteTexture } from "../textures/white";
 
 interface Props {
   label?: string;
@@ -30,8 +31,8 @@ export class PhongMaterial extends Material {
     this.color = new Float32Array([r, g, b, 1.0]);
     this.specColor = new Float32Array(props.specColor ?? [1.0, 1.0, 1.0]);
     this.shininess = props.shininess ?? 32.0;
-    this.texture = props.texture ?? whiteTexture;
-    this.normalTexture = props.normalTexture ?? normalTexture;
+    this.texture = props.texture ?? null;
+    this.normalTexture = props.normalTexture ?? null;
   }
 
   initialize(
@@ -43,15 +44,11 @@ export class PhongMaterial extends Material {
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,
-      size: (4 + 3 + 1) * 4, // vec4 + vec3 + float
+      size: phongLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    new Float32Array(this.uniformBuffer.getMappedRange()).set([
-      ...this.color!,
-      ...this.specColor!,
-      this.shininess,
-    ]);
+    phongLayout.write(this.uniformBuffer.getMappedRange(), { color: this.color!, spec_color: this.specColor!, shininess: this.shininess });
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
@@ -100,11 +97,11 @@ export class PhongMaterial extends Material {
         },
         {
           binding: 1,
-          resource: this.texture!.view!,
+          resource: (this.texture ?? getWhiteTexture(device)).view!,
         },
         {
           binding: 2,
-          resource: this.normalTexture!.view!,
+          resource: (this.normalTexture ?? getNormalTexture(device)).view!,
         },
       ],
     });

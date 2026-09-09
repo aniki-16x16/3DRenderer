@@ -1,4 +1,5 @@
-import { getResourceCache } from "../core/ResourceCache";
+import { solidColorLayout } from "../graphics/BufferLayouts";
+import { getResourceCache } from "../graphics/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 
@@ -30,11 +31,11 @@ export class SolidColorMaterial extends Material {
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
       label: `${this.label}-uniform-buffer`,
-      size: 4 * 4, // vec4
+      size: solidColorLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    new Float32Array(this.uniformBuffer.getMappedRange()).set(this.color!);
+    solidColorLayout.write(this.uniformBuffer.getMappedRange(), { color: this.color! });
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)

@@ -15,7 +15,7 @@ struct VertexOut {
 struct CameraUniforms {
   vp_matrix: mat4x4f,
   position: vec3f,
-  padding: f32,
+  light_count: u32,
 }
 
 struct MaterialUniforms {
@@ -60,7 +60,7 @@ const PI = 3.1415926535897932384626433;
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
   var result = vec3f(0);
-  for (var i: u32 = 0; i < arrayLength(&lights); i += 1) {
+  for (var i: u32 = 0; i < camera.light_count; i += 1) {
     let light = lights[i];
     let N = normalize(input.n_world);
     let L = -light.direction;

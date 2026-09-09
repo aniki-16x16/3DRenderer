@@ -19,5 +19,3 @@ export class ShadowMaterial extends Material {
     };
   }
 }
-
-export const shadowMaterial = new ShadowMaterial();

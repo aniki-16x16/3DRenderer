@@ -1,8 +1,8 @@
 import { Texture } from "../graphics/Texture";
-
-export const whiteTexture = new Texture("WhiteTexture", {
-  colorSpace: "srgb",
-});
-export function initializeWhiteTexture(device: GPUDevice) {
-  whiteTexture.initialize(device, [255, 255, 255, 255]);
+const textures = new WeakMap<GPUDevice, Texture>();
+export function getWhiteTexture(device: GPUDevice): Texture {
+  let texture = textures.get(device);
+  if (!texture) { texture = new Texture("white", { colorSpace: "srgb" }); textures.set(device, texture); }
+  if (!texture.view) texture.initialize(device, [255, 255, 255, 255]);
+  return texture;
 }

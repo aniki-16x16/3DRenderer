@@ -1,10 +1,15 @@
+import { ResourceScope } from "../foundation/ResourceScope";
+import { cameraLayout, modelLayout } from "../graphics/BufferLayouts";
+import { SceneResources } from "./SceneResources";
+import { Shader } from "../graphics/Shader";
+import shadowCode from "../shaders/shadow.wgsl?raw";
 import { Engine } from "../core/Engine";
 import { Scene } from "../core/Scene";
 import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
-import { shadowMaterial } from "../materials/Shadow";
+import { ShadowMaterial } from "../materials/Shadow";
 import { Light } from "../core/Light";
-import { comparisonSampler, linearSampler } from "../graphics/Texture";
+import { getSamplers } from "../graphics/Texture";
 import type { Material } from "../graphics/Material";
 import { StandardVertexBufferSlot } from "../graphics/StandardVertexLayout";
 
@@ -12,6 +17,7 @@ const SHADOW_MAP_SIZE = 2048;
 
 export class ForwardRenderer {
   engine: Engine;
+  private scope = new ResourceScope();
 
   private cameraBuffer: GPUBuffer;
   private sceneBindGroup: GPUBindGroup;
@@ -28,49 +34,69 @@ export class ForwardRenderer {
   private shadowPassBindGroup: GPUBindGroup;
 
   private lightBuffer: GPUBuffer;
+  private lightCapacity = 1;
+  private cameraData = cameraLayout.create();
+  private matrixData = modelLayout.create();
+  private destroyed = false;
+  private shadowMaterial = new ShadowMaterial();
+  readonly resources: SceneResources;
 
-  constructor(engine: Engine, lightNum = 1) {
+  constructor(engine: Engine) {
     this.engine = engine;
-    const device = engine.device!;
+    const device = engine.device;
+    if (!device || !engine.format || !engine.context) throw new Error("Initialize Engine before constructing ForwardRenderer");
+    try {
+      this.resources = this.scope.own(new SceneResources(device, engine.format));
+      this.scope.own(this.shadowMaterial);
+      this.shadowMaterial.initialize(device, engine.format, new Shader(device, "shadow", shadowCode), StandardLayouts.forDevice(device).shadowPassBindGroupLayout);
 
-    this.shadowMap = device.createTexture({
-      label: "ShadowDepthTexture",
-      size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
-      format: "depth32float", // 阴影贴图通常需要更高精度
-      usage:
-        GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-    this.shadowMapView = this.shadowMap.createView();
-    this.shadowPassBuffer = device.createBuffer({
-      label: "ShadowPassBuffer",
-      size: 4 * 4 * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-    this.shadowPassBindGroup = device.createBindGroup({
-      label: "ShadowPassBindGroup",
-      layout: StandardLayouts.shadowPassBindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.shadowPassBuffer } }],
-    });
+      this.shadowMap = this.scope.own(device.createTexture({
+        label: "ShadowDepthTexture",
+        size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
+        format: "depth32float", // 阴影贴图通常需要更高精度
+        usage:
+          GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      }));
+      this.shadowMapView = this.shadowMap.createView();
+      this.shadowPassBuffer = this.scope.own(device.createBuffer({
+        label: "ShadowPassBuffer",
+        size: modelLayout.byteSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }));
+      this.shadowPassBindGroup = device.createBindGroup({
+        label: "ShadowPassBindGroup",
+        layout: StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
+        entries: [{ binding: 0, resource: { buffer: this.shadowPassBuffer } }],
+      });
 
-    this.lightBuffer = device.createBuffer({
-      label: "LightBuffer",
-      size: Light.DataSize * lightNum,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    this.cameraBuffer = device.createBuffer({
-      label: "GlobalCameraBuffer",
-      size: (4 * 4 + 3 + 1) * 4, // vp_matrix (16 floats) + camera_position (vec3) + padding (float)
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-    this.sceneBindGroup = device.createBindGroup({
+      this.lightBuffer = this.scope.own(device.createBuffer({
+        label: "LightBuffer",
+        size: Light.DataSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }));
+      this.cameraBuffer = this.scope.own(device.createBuffer({
+        label: "GlobalCameraBuffer",
+        size: cameraLayout.byteSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }));
+      this.sceneBindGroup = this.createSceneBindGroup();
+    } catch (error) {
+      this.scope.destroy();
+      throw error;
+    }
+  }
+
+  private createSceneBindGroup() {
+    const device = this.engine.device!;
+    return device.createBindGroup({
       label: "GlobalSceneBindGroup",
-      layout: StandardLayouts.sceneBindGroupLayout,
+      layout: StandardLayouts.forDevice(device).sceneBindGroupLayout,
       entries: [
         { binding: 0, resource: { buffer: this.cameraBuffer } },
         { binding: 1, resource: { buffer: this.lightBuffer } },
         {
           binding: 2,
-          resource: linearSampler!,
+          resource: getSamplers(device).linear,
         },
         {
           binding: 3,
@@ -78,7 +104,7 @@ export class ForwardRenderer {
         },
         {
           binding: 4,
-          resource: comparisonSampler!,
+          resource: getSamplers(device).comparison,
         },
         { binding: 5, resource: { buffer: this.shadowPassBuffer } },
       ],
@@ -86,42 +112,46 @@ export class ForwardRenderer {
   }
 
   resize(width: number, height: number) {
+    if (this.destroyed) throw new Error("Renderer has been destroyed");
+    width = Math.max(1, width); height = Math.max(1, height);
     if (this.depthTexture) {
-      this.depthTexture.destroy();
+      this.scope.release(this.depthTexture);
     }
-    this.depthTexture = this.engine.device!.createTexture({
+    this.depthTexture = this.scope.own(this.engine.device!.createTexture({
       label: "DepthTexture",
       size: [width, height],
       format: "depth24plus",
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    }));
     this.depthTextureView = this.depthTexture.createView();
   }
 
   destroy() {
-    this.depthTexture?.destroy();
-    this.shadowMap.destroy();
-    this.cameraBuffer.destroy();
-    this.lightBuffer.destroy();
-    this.shadowPassBuffer.destroy();
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.scope.destroy();
     this.depthTexture = null;
     this.depthTextureView = null;
   }
 
   render(scene: Scene) {
+    if (this.destroyed) throw new Error("Renderer has been destroyed");
     const device = this.engine.device!;
     const context = this.engine.context!;
     const { activeCamera: camera, lights } = scene;
 
     if (!camera) return;
+    this.resources.prepare(scene);
+    if (!this.depthTexture || this.depthTexture.width !== this.engine.canvas.width || this.depthTexture.height !== this.engine.canvas.height) {
+      this.resize(this.engine.canvas.width, this.engine.canvas.height);
+    }
+    this.ensureLightCapacity(lights.length);
 
     {
       camera.updateMatrix();
       const vpMatrix = camera.getViewProjectionMatrix();
-      const bufferData = new Float32Array(16 + 3);
-      bufferData.set(vpMatrix, 0);
-      bufferData.set(camera.position, 16);
-      device.queue.writeBuffer(this.cameraBuffer, 0, bufferData);
+      cameraLayout.write(this.cameraData, { vp_matrix: vpMatrix, position: camera.position, light_count: lights.length });
+      device.queue.writeBuffer(this.cameraBuffer, 0, this.cameraData);
     }
 
     {
@@ -134,11 +164,12 @@ export class ForwardRenderer {
         );
       }
       const light = lights[0]; // 目前先只处理第一个光源的阴影
-      if (light.shadowCamera) {
+      if (light?.shadowCamera) {
         light.syncShadowCamera();
         light.shadowCamera.updateMatrix();
         const shadowVP = light.shadowCamera.getViewProjectionMatrix();
-        device.queue.writeBuffer(this.shadowPassBuffer, 0, shadowVP.buffer);
+        modelLayout.write(this.matrixData, { matrix: shadowVP });
+        device.queue.writeBuffer(this.shadowPassBuffer, 0, this.matrixData);
       }
     }
 
@@ -157,7 +188,7 @@ export class ForwardRenderer {
       },
     });
     shadowPass.setBindGroup(0, this.shadowPassBindGroup);
-    this.drawObjects(shadowPass, renderObjects, shadowMaterial);
+    this.drawObjects(shadowPass, renderObjects, this.shadowMaterial);
     shadowPass.end();
 
     const mainPass = commandEncoder.beginRenderPass({
@@ -180,6 +211,19 @@ export class ForwardRenderer {
     this.drawObjects(mainPass, renderObjects);
     mainPass.end();
     device.queue.submit([commandEncoder.finish()]);
+  }
+
+  private ensureLightCapacity(count: number) {
+    if (count <= this.lightCapacity) return;
+    const device = this.engine.device!;
+    const limit = Math.floor(Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize) / Light.DataSize);
+    if (count > limit) throw new RangeError(`Scene has ${count} lights; device supports ${limit}`);
+    const capacity = Math.min(limit, Math.max(count, this.lightCapacity * 2));
+    const previous = this.lightBuffer;
+    this.lightBuffer = this.scope.own(device.createBuffer({ label: "LightBuffer", size: Light.DataSize * capacity, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }));
+    this.lightCapacity = capacity;
+    this.sceneBindGroup = this.createSceneBindGroup();
+    this.scope.release(previous);
   }
 
   private drawObjects(
@@ -227,7 +271,8 @@ export class ForwardRenderer {
   ) {
     // 写入最新 Model Matrix
     const modelMatrix = obj.transform.getMatrix();
-    device.queue.writeBuffer(obj.modelBuffer!, 0, modelMatrix.buffer);
+    modelLayout.write(this.matrixData, { matrix: modelMatrix });
+    device.queue.writeBuffer(obj.modelBuffer!, 0, this.matrixData);
 
     // 绑定 Group 2 (Model)
     pass.setBindGroup(2, obj.modelBindGroup);

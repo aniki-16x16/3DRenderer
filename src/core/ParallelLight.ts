@@ -1,3 +1,4 @@
+import { lightLayout } from "../graphics/BufferLayouts";
 import { vec3 } from "wgpu-matrix";
 import { Camera } from "./Camera";
 import { Light, LightTypeEnum } from "./Light";
@@ -21,10 +22,7 @@ export class ParallelLight extends Light {
   override packData(): ArrayBuffer {
     const buffer = super.packData();
 
-    const floatView = new Float32Array(buffer, 8 * 4, 3);
-    floatView.set(
-      vec3.normalize(vec3.subtract(this.target, this.transform.position)),
-    );
+    lightLayout.write(buffer, { direction: vec3.normalize(vec3.subtract(this.target, this.transform.position)) });
 
     return buffer;
   }

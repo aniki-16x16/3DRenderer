@@ -11,9 +11,9 @@ export class Scene {
   add(light: Light): Scene;
   add(item: Object3D | Light): Scene {
     if (item instanceof Object3D) {
-      this.objects.push(item);
+      if (!this.objects.includes(item)) this.objects.push(item);
     } else if (item instanceof Light) {
-      this.lights.push(item);
+      if (!this.lights.includes(item)) this.lights.push(item);
     }
     return this;
   }
