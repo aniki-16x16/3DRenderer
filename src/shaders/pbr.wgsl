@@ -59,25 +59,29 @@ const PI = 3.1415926535897932384626433;
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  let light = lights[0];
-  let N = normalize(input.n_world);
-  let L = -light.direction;
-  let V = normalize(camera.position - input.world_position);
-  let H = normalize(V + L);
-  let NoV = clamp(dot(N, V), 0, 1);
-  let NoL = clamp(dot(N, L), 0, 1);
+  var result = vec3f(0);
+  for (var i: u32 = 0; i < arrayLength(&lights); i += 1) {
+    let light = lights[i];
+    let N = normalize(input.n_world);
+    let L = -light.direction;
+    let V = normalize(camera.position - input.world_position);
+    let H = normalize(V + L);
+    let NoV = clamp(dot(N, V), 0, 1);
+    let NoL = clamp(dot(N, L), 0, 1);
 
-  let F = fresnelSchlick(V, H);
-  let D = distributionGGX(N, H);
-  let G = geometrySmith(NoV, NoL);
-  let specular = D * G * F / max(4 * NoV * NoL, 1e-4);
-  let ks = F;
-  let kd = (1 - ks) * (1 - material.metallic);
-  let diffuse = kd * material.base_color.rgb / PI;
+    let F = fresnelSchlick(V, H);
+    let D = distributionGGX(N, H);
+    let G = geometrySmith(NoV, NoL);
+    let specular = D * G * F / max(4 * NoV * NoL, 1e-4);
+    let ks = F;
+    let kd = (1 - ks) * (1 - material.metallic);
+    let diffuse = kd * material.base_color.rgb / PI;
 
-  let Li = light.color * light.intensity;
-  let Lo = (diffuse + specular) * Li * NoL;
-  return select(vec4f(0, 0, 0, 1), vec4f(Lo, 1), NoV > 0 && NoL > 0);
+    let Li = light.color * light.intensity;
+    let Lo = (diffuse + specular) * Li * NoL;
+    result += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
+  }
+  return vec4f(result, 1);
 }
 
 fn fresnelSchlick(V: vec3f, H: vec3f) -> vec3f {

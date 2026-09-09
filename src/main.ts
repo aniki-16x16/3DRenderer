@@ -42,13 +42,20 @@ async function main() {
 
   const scene = new Scene();
   const camera = new Camera();
-  const light = new ParallelLight([1, 1, 1], 3);
   camera.position = vec3.create(0, 4, 8);
   camera.target = vec3.create(0, 0.5, 0);
   scene.activeCamera = camera;
-  light.transform.position = vec3.create(4, 5, 4);
-  light.target = vec3.create(0, 0.5, 0);
-  scene.add(light);
+
+  const lightRed = new ParallelLight([0.9, 0.2, 0.2], 3);
+  const lightBlue = new ParallelLight([0.2, 0.2, 0.9], 2);
+  const lightGreen = new ParallelLight([0.2, 0.9, 0.2], 5);
+  lightRed.transform.position = vec3.create(1, 2, 2);
+  lightBlue.transform.position = vec3.create(-2, 2, -1);
+  lightGreen.transform.position = vec3.create(0, 0, -1);
+  lightRed.target = vec3.create(0, 0.5, 0);
+  lightBlue.target = vec3.create(0, 0.5, 0);
+  lightGreen.target = vec3.zero();
+  scene.add(lightRed).add(lightBlue).add(lightGreen);
 
   // 添加 OrbitControls
   const controls = new OrbitControls(camera, engine.canvas as HTMLElement);
@@ -69,7 +76,7 @@ async function main() {
   cameraFolder.add(camera, "near", 0.1, 1).name("Near");
   cameraFolder.add(camera, "far", 1, 100).name("Far");
 
-  const renderer = new ForwardRenderer(engine);
+  const renderer = new ForwardRenderer(engine, 3);
 
   const pbrShader = new Shader(engine.device!, "pbr-shader", pbrShaderCode);
 
@@ -88,7 +95,7 @@ async function main() {
       const roughness = roughnessLevels[column];
       const material = new PBRMaterial({
         label: `PBR-m${metallic}-r${roughness}`,
-        baseColor: [0.2, 0.3, 1.0, 1.0],
+        baseColor: [0.9, 0.9, 0.9, 1.0],
         metallic,
         roughness,
       });
@@ -138,15 +145,6 @@ async function main() {
 
   engine.onRender = () => {
     renderer.render(scene);
-  };
-
-  engine.onUpdate = (_deltaTime, totalTime) => {
-    const t = totalTime * 0.3;
-    light.transform.position = vec3.create(
-      Math.sin(t) * 4,
-      5,
-      Math.cos(t) * 4,
-    );
   };
 
   window.addEventListener(
