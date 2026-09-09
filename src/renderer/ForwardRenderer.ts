@@ -12,8 +12,11 @@ import { Light } from "../core/Light";
 import { getSamplers } from "../graphics/Texture";
 import type { Material } from "../graphics/Material";
 import { StandardVertexBufferSlot } from "../graphics/StandardVertexLayout";
+import { Output2Canvas } from "../graphics/Output2Canvas";
+import outputCode from '../shaders/output.wgsl?raw';
 
 const SHADOW_MAP_SIZE = 2048;
+const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
 
 export class ForwardRenderer {
   engine: Engine;
@@ -29,6 +32,9 @@ export class ForwardRenderer {
 
   private shadowMap: GPUTexture;
   private shadowMapView: GPUTextureView;
+
+  private hdrTexture: GPUTexture | null = null;
+  private hdrTextureView: GPUTextureView | null = null;
   /**
    * 存放光源的VP矩阵
    */
@@ -42,13 +48,16 @@ export class ForwardRenderer {
   private destroyed = false;
   private shadowMaterial = new ShadowMaterial();
   readonly resources: SceneResources;
+  readonly output2Canvas: Output2Canvas = new Output2Canvas('OutputPass');
 
   constructor(engine: Engine) {
     this.engine = engine;
     const device = engine.device;
     if (!device || !engine.format || !engine.context) throw new Error("Initialize Engine before constructing ForwardRenderer");
     try {
-      this.resources = this.scope.own(new SceneResources(device, engine.format));
+      this.resources = this.scope.own(new SceneResources(device, HDR_FORMAT));
+      this.scope.own(this.output2Canvas);
+      this.output2Canvas.initialize(device, engine.format, new Shader(device, 'output', outputCode));
       this.scope.own(this.shadowMaterial);
       this.shadowMaterial.initialize(device, engine.format, new Shader(device, "shadow", shadowCode), StandardLayouts.forDevice(device).shadowPassBindGroupLayout);
 
@@ -132,6 +141,17 @@ export class ForwardRenderer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     }));
     this.depthTextureView = this.depthTexture.createView();
+    if (this.hdrTexture) {
+      this.scope.release(this.hdrTexture);
+    }
+    this.hdrTexture = this.scope.own(this.engine.device!.createTexture({
+      label: 'HdrTexture',
+      size: [width, height],
+      format: HDR_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    }));
+    this.hdrTextureView = this.hdrTexture.createView();
+    this.output2Canvas.setInput(this.engine.device!, this.hdrTextureView);
   }
 
   destroy() {
@@ -140,6 +160,8 @@ export class ForwardRenderer {
     this.scope.destroy();
     this.depthTexture = null;
     this.depthTextureView = null;
+    this.hdrTexture = null;
+    this.hdrTextureView = null;
   }
 
   render(scene: Scene) {
@@ -204,7 +226,7 @@ export class ForwardRenderer {
     const mainPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: textureView,
+          view: this.hdrTextureView!,
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "clear",
           storeOp: "store",
@@ -220,6 +242,22 @@ export class ForwardRenderer {
     mainPass.setBindGroup(0, this.sceneBindGroup);
     this.drawObjects(mainPass, renderObjects);
     mainPass.end();
+
+    const outputPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: textureView,
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }
+      ]
+    });
+    outputPass.setBindGroup(0, this.output2Canvas.bindGroup);
+    outputPass.setPipeline(this.output2Canvas.pipeline!);
+    outputPass.draw(3);
+    outputPass.end();
+
     device.queue.submit([commandEncoder.finish()]);
   }
 

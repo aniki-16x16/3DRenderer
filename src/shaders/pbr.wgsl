@@ -82,22 +82,7 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
     let Lo = (diffuse + specular) * Li * NoL;
     acc += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
   }
-
-  let exposure = 1.0 + u_time * 0.5;
-  let linear_result = tone_mapping(acc * exposure);
-  return vec4f(color2sRGB(linear_result), 1);
-}
-
-fn tone_mapping(x: vec3f) -> vec3f {
-  return x / (x + 1);
-}
-
-fn sRGB_helper(x: f32) -> f32 {
-  return select(12.92 * x, 1.055 * pow(x, 1 / 2.4) - 0.055, x > 0.0031308);
-}
-
-fn color2sRGB(color: vec3f) -> vec3f {
-  return vec3f(sRGB_helper(color.r), sRGB_helper(color.g), sRGB_helper(color.b));
+  return vec4f(acc, 1);
 }
 
 fn fresnelSchlick(V: vec3f, H: vec3f) -> vec3f {
