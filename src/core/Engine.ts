@@ -15,6 +15,11 @@ export class Engine {
   private _animationId?: number;
   private _isRunning: boolean = false;
   private _lastFrameTime: number = 0;
+  private _startTime?: number;
+  private _elapsedSeconds = 0;
+
+  /** 当前帧距首次 start 的秒数；停止期间的时间也计入。 */
+  get elapsedSeconds(): number { return this._elapsedSeconds; }
 
   // 外部回调
   onUpdate?: (deltaTime: number, totalTime: number) => void;
@@ -60,6 +65,7 @@ export class Engine {
     if (this._isRunning) return;
     this._isRunning = true;
     this._lastFrameTime = performance.now();
+    this._startTime ??= this._lastFrameTime;
     this._run();
   }
 
@@ -111,10 +117,11 @@ export class Engine {
     const now = performance.now();
     const deltaTime = (now - this._lastFrameTime) / 1000;
     this._lastFrameTime = now;
+    this._elapsedSeconds = (now - this._startTime!) / 1000;
 
     // 逻辑更新
     if (this.onUpdate) {
-      this.onUpdate(deltaTime, now / 1000);
+      this.onUpdate(deltaTime, this._elapsedSeconds);
     }
 
     // 渲染调用

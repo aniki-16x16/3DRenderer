@@ -12,6 +12,7 @@ import { Mesh } from '../src/graphics/Mesh.ts';
 import { Object3D } from '../src/core/Object3D.ts';
 import { PBRMaterial } from '../src/materials/PBR.ts';
 import { StandardLayouts } from '../src/graphics/StandardLayouts.ts';
+import { Engine } from '../src/core/Engine.ts';
 
 test('scope deduplicates, disposes in reverse order and continues after failure', () => {
   const scope = new ResourceScope(), calls = [];
@@ -71,7 +72,7 @@ function fixture() {
       writes.push(buffer);
     } },
   };
-  const engine = { device, format: 'rgba8unorm', context: { getCurrentTexture: () => ({ createView: () => ({}) }) }, canvas: { width: 100, height: 100 } };
+  const engine = { elapsedSeconds: 0, device, format: 'rgba8unorm', context: { getCurrentTexture: () => ({ createView: () => ({}) }) }, canvas: { width: 100, height: 100 } };
   return { engine, device, buffers, textures, writes };
 }
 
@@ -117,6 +118,48 @@ test('layouts are cached by device', () => {
   const a = fixture().device, b = fixture().device;
   assert.equal(StandardLayouts.forDevice(a), StandardLayouts.forDevice(a));
   assert.notEqual(StandardLayouts.forDevice(a), StandardLayouts.forDevice(b));
+});
+
+test('engine clock starts at zero and uploads seconds through scene binding 2', t => {
+  let now = 5000, nextFrame;
+  t.mock.method(performance, 'now', () => now);
+  const oldRAF = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame');
+  const oldCancel = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame');
+  globalThis.requestAnimationFrame = callback => { nextFrame = callback; return 1; };
+  globalThis.cancelAnimationFrame = () => {};
+  t.after(() => {
+    if (oldRAF) Object.defineProperty(globalThis, 'requestAnimationFrame', oldRAF);
+    else delete globalThis.requestAnimationFrame;
+    if (oldCancel) Object.defineProperty(globalThis, 'cancelAnimationFrame', oldCancel);
+    else delete globalThis.cancelAnimationFrame;
+  });
+  const f = fixture(), engine = new Engine(f.engine.canvas);
+  Object.assign(engine, { device: f.device, format: f.engine.format, context: f.engine.context });
+  const groups = [];
+  f.device.createBindGroup = desc => { groups.push(desc); return desc; };
+  const renderer = new ForwardRenderer(engine), scene = new Scene();
+  scene.activeCamera = new Camera();
+  engine.onRender = () => renderer.render(scene);
+  engine.start();
+  const time = f.buffers.find(b => b.label === 'GlobalTimeBuffer');
+  const seconds = () => new DataView(time.data).getFloat32(0, true);
+  assert.equal(seconds(), 0);
+  now += 1250; nextFrame();
+  assert.equal(seconds(), 1.25);
+  engine.stop(); now += 2000; engine.start();
+  assert.equal(seconds(), 3.25);
+  scene.lights = Array.from({ length: 3 }, () => new ParallelLight());
+  now += 500; nextFrame();
+  assert.equal(seconds(), 3.75);
+  for (const group of groups.filter(g => g.label === 'GlobalSceneBindGroup')) {
+    assert.equal(group.entries.find(e => e.binding === 2).resource.buffer, time);
+    const layout = group.layout.entries.find(e => e.binding === 2);
+    assert.equal(layout.buffer.type, 'uniform');
+    assert.equal(layout.visibility, GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT);
+  }
+  assert.equal(f.buffers.filter(b => b.label === 'GlobalTimeBuffer').length, 1);
+  engine.stop(); renderer.destroy();
+  assert.equal(time.destroyed, 1);
 });
 
 test('renderer constructor rolls back resources when initialization throws', () => {

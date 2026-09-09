@@ -20,6 +20,8 @@ export class ForwardRenderer {
   private scope = new ResourceScope();
 
   private cameraBuffer: GPUBuffer;
+  private timeBuffer: GPUBuffer;
+  private timeData = new Float32Array(1);
   private sceneBindGroup: GPUBindGroup;
 
   private depthTexture: GPUTexture | null = null;
@@ -79,6 +81,11 @@ export class ForwardRenderer {
         size: cameraLayout.byteSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       }));
+      this.timeBuffer = this.scope.own(device.createBuffer({
+        label: "GlobalTimeBuffer",
+        size: this.timeData.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }));
       this.sceneBindGroup = this.createSceneBindGroup();
     } catch (error) {
       this.scope.destroy();
@@ -94,19 +101,20 @@ export class ForwardRenderer {
       entries: [
         { binding: 0, resource: { buffer: this.cameraBuffer } },
         { binding: 1, resource: { buffer: this.lightBuffer } },
+        { binding: 2, resource: { buffer: this.timeBuffer } },
         {
-          binding: 2,
+          binding: 3,
           resource: getSamplers(device).linear,
         },
         {
-          binding: 3,
+          binding: 4,
           resource: this.shadowMapView,
         },
         {
-          binding: 4,
+          binding: 5,
           resource: getSamplers(device).comparison,
         },
-        { binding: 5, resource: { buffer: this.shadowPassBuffer } },
+        { binding: 6, resource: { buffer: this.shadowPassBuffer } },
       ],
     });
   }
@@ -146,6 +154,8 @@ export class ForwardRenderer {
       this.resize(this.engine.canvas.width, this.engine.canvas.height);
     }
     this.ensureLightCapacity(lights.length);
+    this.timeData[0] = this.engine.elapsedSeconds;
+    device.queue.writeBuffer(this.timeBuffer, 0, this.timeData);
 
     {
       camera.updateMatrix();

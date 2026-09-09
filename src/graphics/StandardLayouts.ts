@@ -33,11 +33,16 @@ export class StandardLayouts {
         },
         {
           binding: 2,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform", minBindingSize: 4 },
+        },
+        {
+          binding: 3,
           visibility: GPUShaderStage.FRAGMENT,
           sampler: { type: "filtering" },
         },
         {
-          binding: 3,
+          binding: 4,
           visibility: GPUShaderStage.FRAGMENT,
           texture: {
             sampleType: "depth",
@@ -46,12 +51,12 @@ export class StandardLayouts {
           },
         },
         {
-          binding: 4,
+          binding: 5,
           visibility: GPUShaderStage.FRAGMENT,
           sampler: { type: "comparison" },
         },
         {
-          binding: 5,
+          binding: 6,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: { type: "uniform" },
         },

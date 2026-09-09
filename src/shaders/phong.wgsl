@@ -37,10 +37,10 @@ struct LightData {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> lights: array<LightData>;
-@group(0) @binding(2) var linear_sampler: sampler;
-@group(0) @binding(3) var shadow_map: texture_depth_2d;
-@group(0) @binding(4) var shadow_sampler: sampler_comparison;
-@group(0) @binding(5) var<uniform> shadowVPMatrix: mat4x4f;
+@group(0) @binding(3) var linear_sampler: sampler;
+@group(0) @binding(4) var shadow_map: texture_depth_2d;
+@group(0) @binding(5) var shadow_sampler: sampler_comparison;
+@group(0) @binding(6) var<uniform> shadowVPMatrix: mat4x4f;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(1) @binding(1) var texture: texture_2d<f32>;
 @group(1) @binding(2) var normal_texture: texture_2d<f32>;

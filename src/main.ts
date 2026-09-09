@@ -35,16 +35,10 @@ async function main() {
     camera.target = vec3.create(0, 0.5, 0);
     scene.activeCamera = camera;
 
-    const lightRed = new ParallelLight([0.9, 0.2, 0.2], 3);
-    const lightBlue = new ParallelLight([0.2, 0.2, 0.9], 2);
-    const lightGreen = new ParallelLight([0.2, 0.9, 0.2], 5);
-    lightRed.transform.position = vec3.create(1, 2, 2);
-    lightBlue.transform.position = vec3.create(-2, 2, -1);
-    lightGreen.transform.position = vec3.create(0, 0, -1);
-    lightRed.target = vec3.create(0, 0.5, 0);
-    lightBlue.target = vec3.create(0, 0.5, 0);
-    lightGreen.target = vec3.zero();
-    scene.add(lightRed).add(lightBlue).add(lightGreen);
+    const light = new ParallelLight([1, 1, 1], 1);
+    light.transform.position = vec3.create(1, 2, 2);
+    light.target = vec3.create(0, 0.5, 0);
+    scene.add(light);
 
     // 添加 OrbitControls
     const controls = new OrbitControls(camera, engine.canvas);

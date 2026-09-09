@@ -36,10 +36,11 @@ struct LightData {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> lights: array<LightData>;
-@group(0) @binding(2) var linear_sampler: sampler;
-@group(0) @binding(3) var shadow_map: texture_depth_2d;
-@group(0) @binding(4) var shadow_sampler: sampler_comparison;
-@group(0) @binding(5) var<uniform> shadowVPMatrix: mat4x4f;
+@group(0) @binding(2) var<uniform> u_time: f32;
+@group(0) @binding(3) var linear_sampler: sampler;
+@group(0) @binding(4) var shadow_map: texture_depth_2d;
+@group(0) @binding(5) var shadow_sampler: sampler_comparison;
+@group(0) @binding(6) var<uniform> shadowVPMatrix: mat4x4f;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
@@ -59,7 +60,7 @@ const PI = 3.1415926535897932384626433;
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  var result = vec3f(0);
+  var acc = vec3f(0);
   for (var i: u32 = 0; i < camera.light_count; i += 1) {
     let light = lights[i];
     let N = normalize(input.n_world);
@@ -79,9 +80,24 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
 
     let Li = light.color * light.intensity;
     let Lo = (diffuse + specular) * Li * NoL;
-    result += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
+    acc += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
   }
-  return vec4f(result, 1);
+
+  let exposure = 1.0 + u_time * 0.5;
+  let linear_result = tone_mapping(acc * exposure);
+  return vec4f(color2sRGB(linear_result), 1);
+}
+
+fn tone_mapping(x: vec3f) -> vec3f {
+  return x / (x + 1);
+}
+
+fn sRGB_helper(x: f32) -> f32 {
+  return select(12.92 * x, 1.055 * pow(x, 1 / 2.4) - 0.055, x > 0.0031308);
+}
+
+fn color2sRGB(color: vec3f) -> vec3f {
+  return vec3f(sRGB_helper(color.r), sRGB_helper(color.g), sRGB_helper(color.b));
 }
 
 fn fresnelSchlick(V: vec3f, H: vec3f) -> vec3f {
