@@ -1,4 +1,31 @@
+/** 缓存身份使用结构化参数，避免分隔符拼接造成碰撞。 */
+export const resourceKeys = {
+  materialLayout: (tag: string) => JSON.stringify(["material-layout", tag]),
+  pipelineLayout: (ids: number[]) => JSON.stringify(["pipeline-layout", ids]),
+  renderPipeline: (config: Record<string, unknown>) => JSON.stringify(["render-pipeline", config]),
+};
+
 export class ResourceCache {
+  private getOrCreate<T>(cache: Map<string, T>, key: string, create: () => T): T {
+    const existing = cache.get(key);
+    if (existing !== undefined) return existing;
+    const value = create();
+    cache.set(key, value);
+    return value;
+  }
+
+  bindGroupLayout(key: string, create: () => GPUBindGroupLayout) {
+    return this.getOrCreate(this.bindGroupLayouts, key, create);
+  }
+
+  pipelineLayout(key: string, create: () => GPUPipelineLayout) {
+    return this.getOrCreate(this.pipelineLayouts, key, create);
+  }
+
+  renderPipeline(key: string, create: () => GPURenderPipeline) {
+    return this.getOrCreate(this.renderPipelines, key, create);
+  }
+
   private resourceIds = new WeakMap<object, number>();
   private nextResourceId = 1;
 
@@ -12,28 +39,10 @@ export class ResourceCache {
   }
 
   private bindGroupLayouts: Map<string, GPUBindGroupLayout> = new Map();
-  getBindGroupLayout(key: string, subType?: string): GPUBindGroupLayout | undefined {
-    return this.bindGroupLayouts.get(getFinalKey(key, subType));
-  }
-  setBindGroupLayout(key: string, layout: GPUBindGroupLayout, subType?: string): void {
-    this.bindGroupLayouts.set(getFinalKey(key, subType), layout);
-  }
 
   private pipelineLayouts: Map<string, GPUPipelineLayout> = new Map();
-  getPipelineLayout(key: string, subType?: string): GPUPipelineLayout | undefined {
-    return this.pipelineLayouts.get(getFinalKey(key, subType));
-  }
-  setPipelineLayout(key: string, layout: GPUPipelineLayout, subType?: string): void {
-    this.pipelineLayouts.set(getFinalKey(key, subType), layout);
-  }
 
   private renderPipelines: Map<string, GPURenderPipeline> = new Map();
-  getRenderPipeline(key: string, subType?: string): GPURenderPipeline | undefined {
-    return this.renderPipelines.get(getFinalKey(key, subType));
-  }
-  setRenderPipeline(key: string, pipeline: GPURenderPipeline, subType?: string): void {
-    this.renderPipelines.set(getFinalKey(key, subType), pipeline);
-  }
 }
 
 const deviceResourceCaches = new WeakMap<GPUDevice, ResourceCache>();
@@ -45,8 +54,4 @@ export function getResourceCache(device: GPUDevice): ResourceCache {
   const cache = new ResourceCache();
   deviceResourceCaches.set(device, cache);
   return cache;
-}
-
-function getFinalKey(key: string, subType?: string): string {
-  return subType === undefined ? key : `${key}::${subType}`;
 }

@@ -1,26 +1,34 @@
+import { resourceLabel } from "../foundation/ResourceLabels";
 import { exposureLayout } from "./BufferLayouts";
 import type { Shader } from "./Shader";
 
 export class Output2Canvas {
   label: string;
-  bindGroupLayout: GPUBindGroupLayout | null = null;
-  bindGroup: GPUBindGroup | null = null;
-  pipeline: GPURenderPipeline | null = null;
-  exposureBuffer: GPUBuffer | null = null;
-  exposureData = new Float32Array(1);
+  private device: GPUDevice | null = null;
+  private bindGroupLayout: GPUBindGroupLayout | null = null;
+  private bindGroup: GPUBindGroup | null = null;
+  private pipeline: GPURenderPipeline | null = null;
+  private exposureBuffer: GPUBuffer | null = null;
+  private exposureData = new Float32Array(1);
+
+  protected resourceLabel(role: string): string {
+    return resourceLabel(this.label, role);
+  }
 
   constructor(label = "Output2Canvas") {
     this.label = label;
   }
 
   initialize(device: GPUDevice, format: GPUTextureFormat, shader: Shader) {
+    if (this.device) throw new Error("Output is already initialized");
+    this.device = device;
     this.exposureBuffer = device.createBuffer({
-      label: "ExposureBuffer",
+      label: this.resourceLabel("exposure-buffer"),
       size: exposureLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.bindGroupLayout = device.createBindGroupLayout({
-      label: `${this.label}-bind-group-layout`,
+      label: this.resourceLabel("bind-group-layout"),
       entries: [
         {
           binding: 0,
@@ -39,7 +47,7 @@ export class Output2Canvas {
       ],
     });
     const pipelineLayout = device.createPipelineLayout({
-      label: `${this.label}-pipeline-layout`,
+      label: this.resourceLabel("pipeline-layout"),
       bindGroupLayouts: [this.bindGroupLayout],
     });
     this.pipeline = device.createRenderPipeline({
@@ -65,9 +73,10 @@ export class Output2Canvas {
     });
   }
 
-  setInput(device: GPUDevice, hdrColor: GPUTextureView) {
+  setInput(hdrColor: GPUTextureView) {
+    const device = this.requireDevice();
     this.bindGroup = device.createBindGroup({
-      label: `${this.label}-bind-group`,
+      label: this.resourceLabel("bind-group"),
       layout: this.bindGroupLayout!,
       entries: [
         {
@@ -84,12 +93,38 @@ export class Output2Canvas {
     });
   }
 
-  setExposure(device: GPUDevice, exposure: number) {
+  setExposure(exposure: number) {
+    const device = this.requireDevice();
     this.exposureData[0] = exposure;
     device.queue.writeBuffer(this.exposureBuffer!, 0, this.exposureData);
   }
 
+  private requireDevice(): GPUDevice {
+    if (!this.device) throw new Error("Output is not initialized or has been destroyed");
+    return this.device;
+  }
+
+  /** 调用方只提供目标，输出绑定由本对象管理。 */
+  render(encoder: GPUCommandEncoder, target: GPUTextureView) {
+    this.requireDevice();
+    if (!this.pipeline || !this.bindGroup) throw new Error("Set output input before rendering");
+    const pass = encoder.beginRenderPass({
+      label: this.resourceLabel("pass"),
+      colorAttachments: [{
+        view: target,
+        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        loadOp: "clear",
+        storeOp: "store",
+      }],
+    });
+    pass.setBindGroup(0, this.bindGroup);
+    pass.setPipeline(this.pipeline);
+    pass.draw(3);
+    pass.end();
+  }
+
   destroy() {
+    this.device = null;
     this.exposureBuffer?.destroy();
     this.exposureBuffer = null;
     this.bindGroupLayout = null;

@@ -150,10 +150,10 @@ test("renderer grows lights, uploads actual count after shrink and handles zero"
   for (const count of [0, 1, 3, 2, 0, 5]) {
     scene.lights = Array.from({ length: count }, () => new ParallelLight());
     renderer.render(scene);
-    const camera = f.buffers.find((b) => b.label === "GlobalCameraBuffer");
+    const camera = f.buffers.find((b) => b.label === "ForwardRenderer-GlobalCameraBuffer");
     assert.equal(new DataView(camera.data).getUint32(76, true), count);
   }
-  const lights = f.buffers.filter((b) => b.label === "LightBuffer");
+  const lights = f.buffers.filter((b) => b.label === "ForwardRenderer-LightBuffer");
   assert.deepEqual(
     lights.map((b) => b.size),
     [48, 144, 288],
@@ -241,7 +241,7 @@ test("engine clock starts at zero and uploads seconds through scene binding 2", 
   scene.activeCamera = new Camera();
   engine.onRender = () => renderer.render(scene);
   engine.start();
-  const time = f.buffers.find((b) => b.label === "GlobalTimeBuffer");
+  const time = f.buffers.find((b) => b.label === "ForwardRenderer-GlobalTimeBuffer");
   const seconds = () => new DataView(time.data).getFloat32(0, true);
   assert.equal(seconds(), 0);
   now += 1250;
@@ -255,13 +255,13 @@ test("engine clock starts at zero and uploads seconds through scene binding 2", 
   now += 500;
   nextFrame();
   assert.equal(seconds(), 3.75);
-  for (const group of groups.filter((g) => g.label === "GlobalSceneBindGroup")) {
+  for (const group of groups.filter((g) => g.label === "ForwardRenderer-GlobalSceneBindGroup")) {
     assert.equal(group.entries.find((e) => e.binding === 2).resource.buffer, time);
     const layout = group.layout.entries.find((e) => e.binding === 2);
     assert.equal(layout.buffer.type, "uniform");
     assert.equal(layout.visibility, GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT);
   }
-  assert.equal(f.buffers.filter((b) => b.label === "GlobalTimeBuffer").length, 1);
+  assert.equal(f.buffers.filter((b) => b.label === "ForwardRenderer-GlobalTimeBuffer").length, 1);
   engine.stop();
   renderer.destroy();
   assert.equal(time.destroyed, 1);
@@ -299,4 +299,71 @@ test("shader declarations retain the same named layout as the CPU", () => {
       if (structName === "LightData") assert.equal(fields.light_type, "u32");
     }
   }
+});
+
+test("output preserves exposure and pipeline when its HDR input changes", () => {
+  const f = fixture();
+  const groups = [], pipelines = [], passes = [], commands = [];
+  f.device.createBindGroup = d => { groups.push(d); return d; };
+  f.device.createRenderPipeline = d => { pipelines.push(d); return d; };
+  f.device.createCommandEncoder = () => ({
+    beginRenderPass(d) {
+      passes.push(d);
+      return {
+        setBindGroup: (index, group) => commands.push(["group", index, group]),
+        setPipeline: pipeline => commands.push(["pipeline", pipeline]),
+        draw: count => commands.push(["draw", count]),
+        end() {},
+      };
+    },
+    finish: () => ({}),
+  });
+  const renderer = new ForwardRenderer(f.engine);
+  const scene = new Scene();
+  scene.activeCamera = new Camera();
+  renderer.setExposure(3);
+  renderer.render(scene);
+  const pipelineCount = pipelines.length;
+  const before = groups.find(g => g.label === "OutputPass-bind-group");
+  const exposure = before.entries[1].resource.buffer;
+  assert.equal(new Float32Array(exposure.data)[0], 3);
+  renderer.setExposure(6);
+  f.engine.canvas.width = 200;
+  renderer.render(scene);
+  const after = groups.filter(g => g.label === "OutputPass-bind-group").at(-1);
+  assert.notEqual(before.entries[0].resource, after.entries[0].resource);
+  assert.equal(after.entries[1].resource.buffer, exposure);
+  assert.equal(new Float32Array(exposure.data)[0], 6);
+  assert.equal(pipelines.length, pipelineCount);
+  const outputPasses = passes.filter(p => p.label === "OutputPass-pass");
+  assert.equal(outputPasses.length, 2);
+  assert.equal(outputPasses[0].depthStencilAttachment, undefined);
+  assert.deepEqual(commands.filter(c => c[0] === "draw"), [["draw", 3], ["draw", 3]]);
+  renderer.destroy();
+  renderer.destroy();
+  assert.equal(exposure.destroyed, 1);
+  assert.throws(() => renderer.setExposure(1), /destroyed/);
+});
+
+test("material pipeline cache shares identical state and separates rendering contracts", async () => {
+  const { Material } = await import("../src/graphics/Material.ts");
+  const { Shader } = await import("../src/graphics/Shader.ts");
+  const f = fixture();
+  const shader = new Shader(f.device, "same-label", "");
+  const make = (format = "rgba16float", change = () => {}, source = shader, sceneLayout) => {
+    const material = new Material("same-label");
+    change(material);
+    material.initialize(f.device, format, source, sceneLayout);
+    return material;
+  };
+  const first = make(), second = make();
+  assert.equal(first.pipeline, second.pipeline);
+  assert.notEqual(first.bindGroup, second.bindGroup);
+  assert.notEqual(first.pipeline, make("rgba8unorm").pipeline);
+  assert.notEqual(first.pipeline, make("rgba16float", m => { m.cullMode = "none"; }).pipeline);
+  assert.notEqual(first.pipeline, make("rgba16float", m => { m.topology = "line-list"; }).pipeline);
+  assert.notEqual(first.pipeline, make("rgba16float", m => { m._enableFragment = false; }).pipeline);
+  assert.notEqual(first.pipeline, make("rgba16float", () => {}, new Shader(f.device, "same-label", "")).pipeline);
+  const otherLayout = f.device.createBindGroupLayout({ entries: [] });
+  assert.notEqual(first.pipeline, make("rgba16float", () => {}, shader, otherLayout).pipeline);
 });

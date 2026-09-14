@@ -1,5 +1,4 @@
 import { phongLayout } from "../graphics/BufferLayouts";
-import { getResourceCache } from "../graphics/ResourceCache";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
@@ -39,7 +38,7 @@ export class PhongMaterial extends Material {
     // 1. 创建 Uniform Buffer
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
-      label: `${this.label}-uniform-buffer`,
+      label: this.resourceLabel("uniform-buffer"),
       size: phongLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
@@ -52,42 +51,30 @@ export class PhongMaterial extends Material {
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
-    const resourceCache = getResourceCache(device);
-    const materialLayoutKey = `material-layout:${this._TAG}`;
-    const cachedBindLayout = resourceCache.getBindGroupLayout(materialLayoutKey);
-    if (cachedBindLayout) {
-      this.bindGroupLayout = cachedBindLayout;
-    } else {
-      this.bindGroupLayout = device.createBindGroupLayout({
-        label: `${this.label}-bind-group-layout`,
-        entries: [
-          {
-            binding: 0,
-            visibility: GPUShaderStage.FRAGMENT,
-            buffer: { type: "uniform" },
-          },
-          {
-            binding: 1,
-            visibility: GPUShaderStage.FRAGMENT,
-            texture: {},
-          },
-          {
-            binding: 2,
-            visibility: GPUShaderStage.FRAGMENT,
-            texture: {},
-          },
-        ],
-      });
-      resourceCache.setBindGroupLayout(materialLayoutKey, this.bindGroupLayout);
-    }
+    this.bindGroupLayout = this.getMaterialLayout(device, [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {},
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {},
+      },
+    ]);
 
-    // 3. 调用父类的初始化，创建 Pipeline
     super.initialize(device, format, shader);
   }
 
   protected createBindGroup(device: GPUDevice) {
     this.bindGroup = device.createBindGroup({
-      label: `${this.label}-bind-group`,
+      label: this.resourceLabel("bind-group"),
       layout: this.bindGroupLayout!,
       entries: [
         {

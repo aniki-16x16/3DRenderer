@@ -67,7 +67,7 @@ async function main() {
       exposure: 3,
     };
     const updateExposure = (value: number) => {
-      app.renderer.output2Canvas.setExposure(engine.device!, value);
+      app.renderer.setExposure(value);
     };
     updateExposure(outputConfig.exposure);
     outputFolder

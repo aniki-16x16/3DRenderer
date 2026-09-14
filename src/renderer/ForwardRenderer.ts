@@ -1,3 +1,5 @@
+import type { Camera } from "../core/Camera";
+import { resourceLabel } from "../foundation/ResourceLabels";
 import { ResourceScope } from "../foundation/ResourceScope";
 import { cameraLayout, modelLayout } from "../graphics/BufferLayouts";
 import { SceneResources } from "./SceneResources";
@@ -30,7 +32,6 @@ export class ForwardRenderer {
   private depthTexture: GPUTexture | null = null;
   private depthTextureView: GPUTextureView | null = null;
 
-  private shadowMap: GPUTexture;
   private shadowMapView: GPUTextureView;
 
   private hdrTexture: GPUTexture | null = null;
@@ -48,7 +49,17 @@ export class ForwardRenderer {
   private destroyed = false;
   private shadowMaterial = new ShadowMaterial();
   readonly resources: SceneResources;
-  readonly output2Canvas: Output2Canvas = new Output2Canvas("OutputPass");
+  private readonly output2Canvas: Output2Canvas = new Output2Canvas("OutputPass");
+
+  private resourceLabel(role: string): string {
+    return resourceLabel("ForwardRenderer", role);
+  }
+
+  /** UI 提交参数，无需访问 GPU 资源。 */
+  setExposure(value: number) {
+    if (this.destroyed) throw new Error("Renderer has been destroyed");
+    this.output2Canvas.setExposure(value);
+  }
 
   constructor(engine: Engine) {
     this.engine = engine;
@@ -71,49 +82,13 @@ export class ForwardRenderer {
         StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
       );
 
-      this.shadowMap = this.scope.own(
-        device.createTexture({
-          label: "ShadowDepthTexture",
-          size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
-          format: "depth32float", // 阴影贴图通常需要更高精度
-          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-        }),
-      );
-      this.shadowMapView = this.shadowMap.createView();
-      this.shadowPassBuffer = this.scope.own(
-        device.createBuffer({
-          label: "ShadowPassBuffer",
-          size: modelLayout.byteSize,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        }),
-      );
-      this.shadowPassBindGroup = device.createBindGroup({
-        label: "ShadowPassBindGroup",
-        layout: StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
-        entries: [{ binding: 0, resource: { buffer: this.shadowPassBuffer } }],
-      });
-
-      this.lightBuffer = this.scope.own(
-        device.createBuffer({
-          label: "LightBuffer",
-          size: Light.DataSize,
-          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        }),
-      );
-      this.cameraBuffer = this.scope.own(
-        device.createBuffer({
-          label: "GlobalCameraBuffer",
-          size: cameraLayout.byteSize,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        }),
-      );
-      this.timeBuffer = this.scope.own(
-        device.createBuffer({
-          label: "GlobalTimeBuffer",
-          size: this.timeData.byteLength,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        }),
-      );
+      const frame = this.createFrameResources(device);
+      this.shadowMapView = frame.shadowMapView;
+      this.shadowPassBuffer = frame.shadowPassBuffer;
+      this.shadowPassBindGroup = frame.shadowPassBindGroup;
+      this.lightBuffer = frame.lightBuffer;
+      this.cameraBuffer = frame.cameraBuffer;
+      this.timeBuffer = frame.timeBuffer;
       this.sceneBindGroup = this.createSceneBindGroup();
     } catch (error) {
       this.scope.destroy();
@@ -121,10 +96,58 @@ export class ForwardRenderer {
     }
   }
 
+  /** 构造失败时，已登记的 Buffer/Texture 仍由外层 scope 回收。 */
+  private createFrameResources(device: GPUDevice) {
+    const shadowMap = this.scope.own(
+      device.createTexture({
+        label: this.resourceLabel("ShadowDepthTexture"),
+        size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
+        format: "depth32float", // 阴影贴图通常需要更高精度
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      }),
+    );
+    const shadowMapView = shadowMap.createView();
+    const shadowPassBuffer = this.scope.own(
+      device.createBuffer({
+        label: this.resourceLabel("ShadowPassBuffer"),
+        size: modelLayout.byteSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }),
+    );
+    const shadowPassBindGroup = device.createBindGroup({
+      label: this.resourceLabel("ShadowPassBindGroup"),
+      layout: StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer: shadowPassBuffer } }],
+    });
+
+    const lightBuffer = this.scope.own(
+      device.createBuffer({
+        label: this.resourceLabel("LightBuffer"),
+        size: Light.DataSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+    );
+    const cameraBuffer = this.scope.own(
+      device.createBuffer({
+        label: this.resourceLabel("GlobalCameraBuffer"),
+        size: cameraLayout.byteSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }),
+    );
+    const timeBuffer = this.scope.own(
+      device.createBuffer({
+        label: this.resourceLabel("GlobalTimeBuffer"),
+        size: this.timeData.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }),
+    );
+    return { shadowMap, shadowMapView, shadowPassBuffer, shadowPassBindGroup, lightBuffer, cameraBuffer, timeBuffer };
+  }
+
   private createSceneBindGroup() {
     const device = this.engine.device!;
     return device.createBindGroup({
-      label: "GlobalSceneBindGroup",
+      label: this.resourceLabel("GlobalSceneBindGroup"),
       layout: StandardLayouts.forDevice(device).sceneBindGroupLayout,
       entries: [
         { binding: 0, resource: { buffer: this.cameraBuffer } },
@@ -156,7 +179,7 @@ export class ForwardRenderer {
     }
     this.depthTexture = this.scope.own(
       this.engine.device!.createTexture({
-        label: "DepthTexture",
+        label: this.resourceLabel("DepthTexture"),
         size: [width, height],
         format: "depth24plus",
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
@@ -168,14 +191,14 @@ export class ForwardRenderer {
     }
     this.hdrTexture = this.scope.own(
       this.engine.device!.createTexture({
-        label: "HdrTexture",
+        label: this.resourceLabel("HdrTexture"),
         size: [width, height],
         format: HDR_FORMAT,
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
       }),
     );
     this.hdrTextureView = this.hdrTexture.createView();
-    this.output2Canvas.setInput(this.engine.device!, this.hdrTextureView);
+    this.output2Canvas.setInput(this.hdrTextureView);
   }
 
   destroy() {
@@ -203,6 +226,23 @@ export class ForwardRenderer {
     ) {
       this.resize(this.engine.canvas.width, this.engine.canvas.height);
     }
+    this.uploadFrame(camera, lights);
+
+    const renderObjects = this.sortObjectsByMaterial(scene.objects);
+
+    const textureView = context.getCurrentTexture().createView();
+    const commandEncoder = device.createCommandEncoder();
+
+    this.renderShadowPass(commandEncoder, renderObjects);
+    this.renderScenePass(commandEncoder, renderObjects);
+
+    this.output2Canvas.render(commandEncoder, textureView);
+
+    device.queue.submit([commandEncoder.finish()]);
+  }
+
+  private uploadFrame(camera: Camera, lights: Light[]) {
+    const device = this.engine.device!;
     this.ensureLightCapacity(lights.length);
     this.timeData[0] = this.engine.elapsedSeconds;
     device.queue.writeBuffer(this.timeBuffer, 0, this.timeData);
@@ -233,12 +273,10 @@ export class ForwardRenderer {
       }
     }
 
-    const renderObjects = this.sortObjectsByMaterial(scene.objects);
+  }
 
-    const textureView = context.getCurrentTexture().createView();
-    const commandEncoder = device.createCommandEncoder();
-
-    const shadowPass = commandEncoder.beginRenderPass({
+  private renderShadowPass(encoder: GPUCommandEncoder, objects: Object3D[]) {
+    const shadowPass = encoder.beginRenderPass({
       colorAttachments: [],
       depthStencilAttachment: {
         view: this.shadowMapView,
@@ -248,10 +286,13 @@ export class ForwardRenderer {
       },
     });
     shadowPass.setBindGroup(0, this.shadowPassBindGroup);
-    this.drawObjects(shadowPass, renderObjects, this.shadowMaterial);
+    this.drawObjects(shadowPass, objects, this.shadowMaterial);
     shadowPass.end();
 
-    const mainPass = commandEncoder.beginRenderPass({
+  }
+
+  private renderScenePass(encoder: GPUCommandEncoder, objects: Object3D[]) {
+    const mainPass = encoder.beginRenderPass({
       colorAttachments: [
         {
           view: this.hdrTextureView!,
@@ -268,25 +309,9 @@ export class ForwardRenderer {
       },
     });
     mainPass.setBindGroup(0, this.sceneBindGroup);
-    this.drawObjects(mainPass, renderObjects);
+    this.drawObjects(mainPass, objects);
     mainPass.end();
 
-    const outputPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textureView,
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-    });
-    outputPass.setBindGroup(0, this.output2Canvas.bindGroup);
-    outputPass.setPipeline(this.output2Canvas.pipeline!);
-    outputPass.draw(3);
-    outputPass.end();
-
-    device.queue.submit([commandEncoder.finish()]);
   }
 
   private ensureLightCapacity(count: number) {
@@ -294,14 +319,14 @@ export class ForwardRenderer {
     const device = this.engine.device!;
     const limit = Math.floor(
       Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize) /
-        Light.DataSize,
+      Light.DataSize,
     );
     if (count > limit) throw new RangeError(`Scene has ${count} lights; device supports ${limit}`);
     const capacity = Math.min(limit, Math.max(count, this.lightCapacity * 2));
     const previous = this.lightBuffer;
     this.lightBuffer = this.scope.own(
       device.createBuffer({
-        label: "LightBuffer",
+        label: this.resourceLabel("LightBuffer"),
         size: Light.DataSize * capacity,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       }),
@@ -333,7 +358,6 @@ export class ForwardRenderer {
       }
 
       // 绑定 Group 1 (Material Level)
-      // 假设 Material 类有一个 bindGroup 属性
       const matGroup = material.bindGroup;
       if (matGroup && currentMaterialGroup !== matGroup) {
         pass.setBindGroup(1, matGroup);
