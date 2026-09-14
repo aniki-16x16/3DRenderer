@@ -19,7 +19,9 @@ export class Engine {
   private _elapsedSeconds = 0;
 
   /** 当前帧距首次 start 的秒数；停止期间的时间也计入。 */
-  get elapsedSeconds(): number { return this._elapsedSeconds; }
+  get elapsedSeconds(): number {
+    return this._elapsedSeconds;
+  }
 
   // 外部回调
   onUpdate?: (deltaTime: number, totalTime: number) => void;

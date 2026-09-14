@@ -29,25 +29,17 @@ export class Mesh {
     normals?: number[] | Float32Array,
     uvs?: number[] | Float32Array,
   ) {
-    this.vertexData =
-      vertices instanceof Float32Array ? vertices : new Float32Array(vertices);
+    this.vertexData = vertices instanceof Float32Array ? vertices : new Float32Array(vertices);
 
     if (indices) {
       if (indices instanceof Uint16Array || indices instanceof Uint32Array) {
         this.indexData = indices;
       } else {
         // 索引格式取决于最大索引值，而不是索引数量。
-        const maxIndex = indices.reduce(
-          (currentMax, index) => Math.max(currentMax, index),
-          0,
-        );
-        this.indexData =
-          maxIndex > 65535
-            ? new Uint32Array(indices)
-            : new Uint16Array(indices);
+        const maxIndex = indices.reduce((currentMax, index) => Math.max(currentMax, index), 0);
+        this.indexData = maxIndex > 65535 ? new Uint32Array(indices) : new Uint16Array(indices);
       }
-      this.indexFormat =
-        this.indexData instanceof Uint32Array ? "uint32" : "uint16";
+      this.indexFormat = this.indexData instanceof Uint32Array ? "uint32" : "uint16";
       this.indexCount = indices.length;
     } else {
       this.indexData = null;
@@ -56,8 +48,7 @@ export class Mesh {
     }
 
     if (normals) {
-      this.normalData =
-        normals instanceof Float32Array ? normals : new Float32Array(normals);
+      this.normalData = normals instanceof Float32Array ? normals : new Float32Array(normals);
     }
 
     if (uvs) {
@@ -138,9 +129,7 @@ export class Mesh {
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         mappedAtCreation: true,
       });
-      new Float32Array(this.tangentBuffer.getMappedRange()).set(
-        this.tangentData,
-      );
+      new Float32Array(this.tangentBuffer.getMappedRange()).set(this.tangentData);
       this.tangentBuffer.unmap();
     }
   }

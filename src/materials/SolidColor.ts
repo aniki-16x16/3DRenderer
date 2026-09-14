@@ -22,11 +22,7 @@ export class SolidColorMaterial extends Material {
     this.color = new Float32Array([r, g, b, a]);
   }
 
-  initialize(
-    device: GPUDevice,
-    format: GPUTextureFormat,
-    shader: Shader,
-  ): void {
+  initialize(device: GPUDevice, format: GPUTextureFormat, shader: Shader): void {
     // 1. 创建 Uniform Buffer
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
@@ -41,8 +37,7 @@ export class SolidColorMaterial extends Material {
     // 2. 创建 BindGroupLayout (Group 1)
     const resourceCache = getResourceCache(device);
     const materialLayoutKey = `material-layout:${this._TAG}`;
-    const cachedBindLayout =
-      resourceCache.getBindGroupLayout(materialLayoutKey);
+    const cachedBindLayout = resourceCache.getBindGroupLayout(materialLayoutKey);
     if (cachedBindLayout) {
       this.bindGroupLayout = cachedBindLayout;
     } else {

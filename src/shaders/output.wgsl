@@ -1,4 +1,5 @@
 @group(0) @binding(0) var hdr_color: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> exposure: f32;
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
@@ -9,7 +10,6 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 @fragment
 fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let raw_color = textureLoad(hdr_color, vec2i(position.xy), 0);
-  let exposure = 3.0;
   return vec4f(color2sRGB(tone_mapping(raw_color.rgb * exposure)), 1);
 }
 

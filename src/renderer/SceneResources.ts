@@ -34,12 +34,18 @@ export class SceneResources {
   private ensure<T extends { destroy(): void }>(resource: T, initialize: () => void) {
     if (this.initialized.has(resource)) return;
     const owner = owners.get(resource);
-    if (owner && owner !== this) throw new Error("Resource already belongs to another renderer; create a separate instance");
+    if (owner && owner !== this)
+      throw new Error("Resource already belongs to another renderer; create a separate instance");
     owners.set(resource, this);
     this.owned.add(resource);
     this.scope.adopt(resource, () => {
-      try { resource.destroy(); }
-      finally { owners.delete(resource); this.owned.delete(resource); this.initialized.delete(resource); }
+      try {
+        resource.destroy();
+      } finally {
+        owners.delete(resource);
+        this.owned.delete(resource);
+        this.initialized.delete(resource);
+      }
     });
     initialize();
     this.initialized.add(resource);
@@ -53,15 +59,29 @@ export class SceneResources {
       this.ensure(mesh, () => mesh.initialize(this.device));
       if (material instanceof PhongMaterial) {
         for (const texture of [material.texture, material.normalTexture]) {
-          if (texture) this.ensure(texture, () => { if (!texture.view) texture.initialize(this.device); });
+          if (texture)
+            this.ensure(texture, () => {
+              if (!texture.view) texture.initialize(this.device);
+            });
         }
       }
       this.ensure(material, () => {
-        const code = this.customShaders.get(material) ??
-          (material instanceof PBRMaterial ? pbr : material instanceof PhongMaterial ? phong : material instanceof SolidColorMaterial ? solid : undefined);
-        if (code === undefined) throw new Error(`Register a shader for ${material.label} before rendering`);
+        const code =
+          this.customShaders.get(material) ??
+          (material instanceof PBRMaterial
+            ? pbr
+            : material instanceof PhongMaterial
+              ? phong
+              : material instanceof SolidColorMaterial
+                ? solid
+                : undefined);
+        if (code === undefined)
+          throw new Error(`Register a shader for ${material.label} before rendering`);
         let shader = this.shaders.get(code);
-        if (!shader) { shader = new Shader(this.device, material.label, code); this.shaders.set(code, shader); }
+        if (!shader) {
+          shader = new Shader(this.device, material.label, code);
+          this.shaders.set(code, shader);
+        }
         material.initialize(this.device, this.format, shader);
       });
       this.ensure(object, () => object.initialize(this.device));
@@ -87,5 +107,8 @@ export class SceneResources {
     }
   }
 
-  destroy() { this.shaders.clear(); this.scope.destroy(); }
+  destroy() {
+    this.shaders.clear();
+    this.scope.destroy();
+  }
 }

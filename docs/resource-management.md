@@ -34,13 +34,13 @@ app.scope.defer(() => window.removeEventListener("some-event", handler));
 
 ## 所有权与共享
 
-| 对象 | 所有者 | 释放时机 |
-| --- | --- | --- |
-| GPUDevice、画布上下文和循环 | Engine，由 Application 管理 | app.destroy |
-| 深度纹理、光源缓冲、阴影资源 | ForwardRenderer | 替换或 renderer.destroy |
-| 提交过的 Object3D、Mesh、Material、自定义 Phong 纹理 | SceneResources | releaseUnused 或 renderer.destroy |
-| 默认白纹理、默认法线纹理、采样器和 Layout/Pipeline 缓存 | 按 GPUDevice 缓存 | device.destroy 释放设备资源，设备对象不可达后缓存可回收 |
-| GUI、控制器和监听器 | Application.scope | app.destroy |
+| 对象                                                    | 所有者                      | 释放时机                                                |
+| ------------------------------------------------------- | --------------------------- | ------------------------------------------------------- |
+| GPUDevice、画布上下文和循环                             | Engine，由 Application 管理 | app.destroy                                             |
+| 深度纹理、光源缓冲、阴影资源                            | ForwardRenderer             | 替换或 renderer.destroy                                 |
+| 提交过的 Object3D、Mesh、Material、自定义 Phong 纹理    | SceneResources              | releaseUnused 或 renderer.destroy                       |
+| 默认白纹理、默认法线纹理、采样器和 Layout/Pipeline 缓存 | 按 GPUDevice 缓存           | device.destroy 释放设备资源，设备对象不可达后缓存可回收 |
+| GUI、控制器和监听器                                     | Application.scope           | app.destroy                                             |
 
 Scene 只保存引用。`scene.remove(object)` 不销毁共享 Mesh 或材质。希望立即回收当前场景不再引用的资源时调用：
 
@@ -81,15 +81,15 @@ lightLayout.write(data, { direction });
 
 ## 模块职责
 
-| 目录 | 当前职责 |
-| --- | --- |
-| foundation | 与 WebGPU 无关的所有权容器、二进制布局工具 |
-| core | 场景、对象、变换、相机、光源及设备循环；尚非完全纯 CPU 层 |
-| graphics | GPU 资源包装、布局协议、按设备缓存 |
-| materials / shaders | 材质参数和 Shader 实现 |
-| renderer | 自动准备场景资源、光源容量和现有渲染 Pass 的组织 |
-| app | 应用创建、resize、循环和统一销毁入口 |
-| loader / controls | 文件加载和输入交互 |
+| 目录                | 当前职责                                                  |
+| ------------------- | --------------------------------------------------------- |
+| foundation          | 与 WebGPU 无关的所有权容器、二进制布局工具                |
+| core                | 场景、对象、变换、相机、光源及设备循环；尚非完全纯 CPU 层 |
+| graphics            | GPU 资源包装、布局协议、按设备缓存                        |
+| materials / shaders | 材质参数和 Shader 实现                                    |
+| renderer            | 自动准备场景资源、光源容量和现有渲染 Pass 的组织          |
+| app                 | 应用创建、resize、循环和统一销毁入口                      |
+| loader / controls   | 文件加载和输入交互                                        |
 
 没有为移动目录而拆分所有类。Object3D 仍持有模型缓冲，Mesh 仍同时持有 CPU 和 GPU 数据；日后需要一个场景跨设备渲染时，再考虑将 GPU 状态彻底移入渲染器。
 

@@ -1,7 +1,10 @@
 // 仅支持当前项目使用的 32 位标量、向量和 mat4；不冒充完整 WGSL 解析器。
 const types = {
-  f32: [4, 4, 1], u32: [4, 4, 1],
-  vec2f: [8, 8, 2], vec3f: [16, 12, 3], vec4f: [16, 16, 4],
+  f32: [4, 4, 1],
+  u32: [4, 4, 1],
+  vec2f: [8, 8, 2],
+  vec3f: [16, 12, 3],
+  vec4f: [16, 16, 4],
   mat4x4f: [16, 64, 16],
 } as const;
 type FieldType = keyof typeof types;
@@ -39,7 +42,11 @@ export class StructLayout<T extends Definition> {
   }
 
   write(buffer: ArrayBuffer, values: Partial<Values<T>>, byteOffset = 0): void {
-    if (!Number.isInteger(byteOffset) || byteOffset < 0 || byteOffset + this.byteSize > buffer.byteLength) {
+    if (
+      !Number.isInteger(byteOffset) ||
+      byteOffset < 0 ||
+      byteOffset + this.byteSize > buffer.byteLength
+    ) {
       throw new RangeError("Struct write exceeds buffer bounds");
     }
     const view = new DataView(buffer, byteOffset, this.byteSize);
@@ -49,7 +56,8 @@ export class StructLayout<T extends Definition> {
       const value = values[name] as number | ArrayLike<number>;
       const count = types[type][2];
       const components = typeof value === "number" ? [value] : value;
-      if (components.length !== count) throw new RangeError(`Invalid component count: ${String(name)}`);
+      if (components.length !== count)
+        throw new RangeError(`Invalid component count: ${String(name)}`);
       for (let i = 0; i < count; i++) {
         if (type === "u32") {
           if (!Number.isInteger(components[i]) || components[i] < 0 || components[i] > 0xffffffff) {

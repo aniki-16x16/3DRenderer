@@ -17,8 +17,7 @@ export class Texture {
   constructor(label: string = "Texture", options: TextureOptions = {}) {
     this.label = label;
     this.format =
-      options.format ??
-      (options.colorSpace === "srgb" ? "rgba8unorm-srgb" : "rgba8unorm");
+      options.format ?? (options.colorSpace === "srgb" ? "rgba8unorm-srgb" : "rgba8unorm");
     const formatColorSpace = this.format.endsWith("-srgb") ? "srgb" : "linear";
     if (options.colorSpace && options.colorSpace !== formatColorSpace) {
       throw new Error(
@@ -28,10 +27,7 @@ export class Texture {
     this.colorSpace = formatColorSpace;
   }
 
-  initialize(
-    device: GPUDevice,
-    color: [number, number, number, number] = [255, 0, 255, 255],
-  ) {
+  initialize(device: GPUDevice, color: [number, number, number, number] = [255, 0, 255, 255]) {
     this.destroy();
     this.texture = device.createTexture({
       label: this.label,
@@ -71,11 +67,10 @@ export class Texture {
           GPUTextureUsage.COPY_DST |
           GPUTextureUsage.RENDER_ATTACHMENT,
       });
-      device.queue.copyExternalImageToTexture(
-        { source },
-        { texture: this.texture },
-        [source.width, source.height],
-      );
+      device.queue.copyExternalImageToTexture({ source }, { texture: this.texture }, [
+        source.width,
+        source.height,
+      ]);
     } finally {
       source.close();
     }
@@ -95,8 +90,21 @@ export function getSamplers(device: GPUDevice) {
   let cached = samplers.get(device);
   if (!cached) {
     cached = {
-      linear: device.createSampler({ label: "LinearSampler", magFilter: "linear", minFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }),
-      comparison: device.createSampler({ label: "ComparisonSampler", compare: "less", minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }),
+      linear: device.createSampler({
+        label: "LinearSampler",
+        magFilter: "linear",
+        minFilter: "linear",
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+      }),
+      comparison: device.createSampler({
+        label: "ComparisonSampler",
+        compare: "less",
+        minFilter: "linear",
+        magFilter: "linear",
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+      }),
     };
     samplers.set(device, cached);
   }

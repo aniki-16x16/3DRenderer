@@ -24,30 +24,12 @@ export class Camera {
     mat4.lookAt(this.position, this.target, this.up, this._viewMatrix);
     mat4.identity(this._projectionMatrix);
     if (this.type === "perspective") {
-      mat4.perspective(
-        this.fov,
-        this.aspect,
-        this.near,
-        this.far,
-        this._projectionMatrix,
-      );
+      mat4.perspective(this.fov, this.aspect, this.near, this.far, this._projectionMatrix);
     } else {
       const { orthoSize: size } = this;
-      mat4.ortho(
-        -size,
-        size,
-        -size,
-        size,
-        this.near,
-        this.far,
-        this._projectionMatrix,
-      );
+      mat4.ortho(-size, size, -size, size, this.near, this.far, this._projectionMatrix);
     }
-    mat4.multiply(
-      this._projectionMatrix,
-      this._viewMatrix,
-      this._viewProjectionMatrix,
-    );
+    mat4.multiply(this._projectionMatrix, this._viewMatrix, this._viewProjectionMatrix);
   }
 
   getViewMatrix() {

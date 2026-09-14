@@ -3,7 +3,10 @@ export class StandardLayouts {
 
   static forDevice(device: GPUDevice): StandardLayouts {
     let layouts = this.instances.get(device);
-    if (!layouts) { layouts = new StandardLayouts(device); this.instances.set(device, layouts); }
+    if (!layouts) {
+      layouts = new StandardLayouts(device);
+      this.instances.set(device, layouts);
+    }
     return layouts;
   }
 
@@ -16,7 +19,6 @@ export class StandardLayouts {
   readonly shadowPassBindGroupLayout: GPUBindGroupLayout;
 
   private constructor(device: GPUDevice) {
-
     // 1. Group 0: Scene (Camera + Lights + Shadow resources)
     this.sceneBindGroupLayout = device.createBindGroupLayout({
       label: "standard-scene-bind-group-layout",

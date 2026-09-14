@@ -1,11 +1,15 @@
-export interface Destroyable { destroy(): void }
+export interface Destroyable {
+  destroy(): void;
+}
 
 /** 显式所有权：登记一次，按依赖的逆序清理；借用资源不登记。 */
 export class ResourceScope {
   private cleanups = new Map<object, () => void>();
   private closed = false;
 
-  get destroyed() { return this.closed; }
+  get destroyed() {
+    return this.closed;
+  }
 
   own<T extends Destroyable>(resource: T): T {
     return this.adopt(resource, () => resource.destroy());
@@ -20,7 +24,9 @@ export class ResourceScope {
     return resource;
   }
 
-  defer(cleanup: () => void): void { this.adopt(cleanup, cleanup); }
+  defer(cleanup: () => void): void {
+    this.adopt(cleanup, cleanup);
+  }
 
   release(resource: object): void {
     const cleanup = this.cleanups.get(resource);
@@ -35,7 +41,11 @@ export class ResourceScope {
     this.cleanups.clear();
     const errors: unknown[] = [];
     for (const cleanup of cleanups) {
-      try { cleanup(); } catch (error) { errors.push(error); }
+      try {
+        cleanup();
+      } catch (error) {
+        errors.push(error);
+      }
     }
     if (errors.length) throw new AggregateError(errors, "Resource cleanup failed");
   }

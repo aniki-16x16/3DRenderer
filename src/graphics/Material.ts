@@ -66,9 +66,7 @@ export class Material {
     // 默认空 Layout (如果子类不重写，表示该材质无需 Uniform)
     if (!this.bindGroupLayout) {
       const materialLayoutKey = `material-layout:${this._TAG}`;
-      const cachedBindLayout = resourceCache.getBindGroupLayout(
-        materialLayoutKey,
-      );
+      const cachedBindLayout = resourceCache.getBindGroupLayout(materialLayoutKey);
       if (cachedBindLayout) {
         this.bindGroupLayout = cachedBindLayout;
       } else {
@@ -76,10 +74,7 @@ export class Material {
           label: `${this.label}-empty-layout`,
           entries: [], // 空
         });
-        resourceCache.setBindGroupLayout(
-          materialLayoutKey,
-          this.bindGroupLayout,
-        );
+        resourceCache.setBindGroupLayout(materialLayoutKey, this.bindGroupLayout);
       }
     }
 
@@ -90,8 +85,7 @@ export class Material {
       resourceCache.getResourceId(this.bindGroupLayout),
       resourceCache.getResourceId(modelLayout),
     ].join(":");
-    const cachedPipelineLayout =
-      resourceCache.getPipelineLayout(pipelineLayoutKey);
+    const cachedPipelineLayout = resourceCache.getPipelineLayout(pipelineLayoutKey);
     const pipelineLayout =
       cachedPipelineLayout ??
       device.createPipelineLayout({

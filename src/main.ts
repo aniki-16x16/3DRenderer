@@ -22,7 +22,10 @@ async function main() {
   const canvas = document.getElementById("canvas");
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing canvas");
   const app = await Application.create(canvas);
-  if (disposed) { app.destroy(); return; }
+  if (disposed) {
+    app.destroy();
+    return;
+  }
   currentApp = app;
   const { engine, scope } = app;
   const cleanup = () => app.destroy();
@@ -59,6 +62,18 @@ async function main() {
       });
     cameraFolder.add(camera, "near", 0.1, 1).name("Near");
     cameraFolder.add(camera, "far", 1, 100).name("Far");
+    const outputFolder = gui.addFolder("Output");
+    const outputConfig = {
+      exposure: 3,
+    };
+    const updateExposure = (value: number) => {
+      app.renderer.output2Canvas.setExposure(engine.device!, value);
+    };
+    updateExposure(outputConfig.exposure);
+    outputFolder
+      .add(outputConfig, "exposure", 0, 10, 0.1)
+      .name("Exposure")
+      .onChange(updateExposure);
 
     const bunnyMesh = await new OBJLoader().load("assets/obj/bunny_10k.obj");
     if (scope.destroyed) return;
@@ -78,11 +93,7 @@ async function main() {
           roughness,
         });
 
-        const bunny = new Object3D(
-          `bunny-m${metallic}-r${roughness}`,
-          bunnyMesh,
-          material,
-        );
+        const bunny = new Object3D(`bunny-m${metallic}-r${roughness}`, bunnyMesh, material);
         bunny.transform.position = vec3.create(
           (column - (roughnessLevels.length - 1) / 2) * columnSpacing,
           0,

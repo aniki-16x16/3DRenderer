@@ -35,11 +35,7 @@ export class PhongMaterial extends Material {
     this.normalTexture = props.normalTexture ?? null;
   }
 
-  initialize(
-    device: GPUDevice,
-    format: GPUTextureFormat,
-    shader: Shader,
-  ): void {
+  initialize(device: GPUDevice, format: GPUTextureFormat, shader: Shader): void {
     // 1. 创建 Uniform Buffer
     this.uniformBuffer?.destroy();
     this.uniformBuffer = device.createBuffer({
@@ -48,14 +44,17 @@ export class PhongMaterial extends Material {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    phongLayout.write(this.uniformBuffer.getMappedRange(), { color: this.color!, spec_color: this.specColor!, shininess: this.shininess });
+    phongLayout.write(this.uniformBuffer.getMappedRange(), {
+      color: this.color!,
+      spec_color: this.specColor!,
+      shininess: this.shininess,
+    });
     this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
     const resourceCache = getResourceCache(device);
     const materialLayoutKey = `material-layout:${this._TAG}`;
-    const cachedBindLayout =
-      resourceCache.getBindGroupLayout(materialLayoutKey);
+    const cachedBindLayout = resourceCache.getBindGroupLayout(materialLayoutKey);
     if (cachedBindLayout) {
       this.bindGroupLayout = cachedBindLayout;
     } else {

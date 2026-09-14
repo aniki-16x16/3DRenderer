@@ -32,6 +32,11 @@ export class Light extends Node3D {
   }
 
   packData(): ArrayBuffer {
-    return lightLayout.create({ position: this.transform.positionRaw, light_type: this.type, color: this.color, intensity: this.intensity });
+    return lightLayout.create({
+      position: this.transform.positionRaw,
+      light_type: this.type,
+      color: this.color,
+      intensity: this.intensity,
+    });
   }
 }

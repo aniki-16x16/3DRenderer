@@ -23,7 +23,10 @@ export class Application {
     try {
       await engine.init();
       return new Application(engine);
-    } catch (error) { engine.destroy(); throw error; }
+    } catch (error) {
+      engine.destroy();
+      throw error;
+    }
   }
 
   start(scene: Scene) {
@@ -33,8 +36,12 @@ export class Application {
     };
     this.engine.resize();
     this.engine.onRender = () => {
-      try { this.renderer.render(scene); }
-      catch (error) { this.destroy(); throw error; }
+      try {
+        this.renderer.render(scene);
+      } catch (error) {
+        this.destroy();
+        throw error;
+      }
     };
     this.engine.start();
   }

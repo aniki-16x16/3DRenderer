@@ -86,18 +86,10 @@ export class OBJLoader {
 
       if (type === "v") {
         // v x y z
-        rawPositions.push(
-          parseFloat(parts[1]),
-          parseFloat(parts[2]),
-          parseFloat(parts[3]),
-        );
+        rawPositions.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
       } else if (type === "vn") {
         // vn x y z
-        rawNormals.push(
-          parseFloat(parts[1]),
-          parseFloat(parts[2]),
-          parseFloat(parts[3]),
-        );
+        rawNormals.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
       } else if (type === "vt") {
         // vt u v
         // 注意：WebGPU/WebGL 的 V 轴通常与 OBJ 的 V 轴方向相反，可能需要 1.0 - v

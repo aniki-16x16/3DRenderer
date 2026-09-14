@@ -22,7 +22,9 @@ export class ParallelLight extends Light {
   override packData(): ArrayBuffer {
     const buffer = super.packData();
 
-    lightLayout.write(buffer, { direction: vec3.normalize(vec3.subtract(this.target, this.transform.position)) });
+    lightLayout.write(buffer, {
+      direction: vec3.normalize(vec3.subtract(this.target, this.transform.position)),
+    });
 
     return buffer;
   }

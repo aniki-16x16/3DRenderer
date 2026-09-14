@@ -13,10 +13,10 @@ import { getSamplers } from "../graphics/Texture";
 import type { Material } from "../graphics/Material";
 import { StandardVertexBufferSlot } from "../graphics/StandardVertexLayout";
 import { Output2Canvas } from "../graphics/Output2Canvas";
-import outputCode from '../shaders/output.wgsl?raw';
+import outputCode from "../shaders/output.wgsl?raw";
 
 const SHADOW_MAP_SIZE = 2048;
-const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+const HDR_FORMAT: GPUTextureFormat = "rgba16float";
 
 export class ForwardRenderer {
   engine: Engine;
@@ -48,53 +48,72 @@ export class ForwardRenderer {
   private destroyed = false;
   private shadowMaterial = new ShadowMaterial();
   readonly resources: SceneResources;
-  readonly output2Canvas: Output2Canvas = new Output2Canvas('OutputPass');
+  readonly output2Canvas: Output2Canvas = new Output2Canvas("OutputPass");
 
   constructor(engine: Engine) {
     this.engine = engine;
     const device = engine.device;
-    if (!device || !engine.format || !engine.context) throw new Error("Initialize Engine before constructing ForwardRenderer");
+    if (!device || !engine.format || !engine.context)
+      throw new Error("Initialize Engine before constructing ForwardRenderer");
     try {
       this.resources = this.scope.own(new SceneResources(device, HDR_FORMAT));
       this.scope.own(this.output2Canvas);
-      this.output2Canvas.initialize(device, engine.format, new Shader(device, 'output', outputCode));
+      this.output2Canvas.initialize(
+        device,
+        engine.format,
+        new Shader(device, "output", outputCode),
+      );
       this.scope.own(this.shadowMaterial);
-      this.shadowMaterial.initialize(device, engine.format, new Shader(device, "shadow", shadowCode), StandardLayouts.forDevice(device).shadowPassBindGroupLayout);
+      this.shadowMaterial.initialize(
+        device,
+        engine.format,
+        new Shader(device, "shadow", shadowCode),
+        StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
+      );
 
-      this.shadowMap = this.scope.own(device.createTexture({
-        label: "ShadowDepthTexture",
-        size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
-        format: "depth32float", // 阴影贴图通常需要更高精度
-        usage:
-          GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-      }));
+      this.shadowMap = this.scope.own(
+        device.createTexture({
+          label: "ShadowDepthTexture",
+          size: [SHADOW_MAP_SIZE, SHADOW_MAP_SIZE],
+          format: "depth32float", // 阴影贴图通常需要更高精度
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        }),
+      );
       this.shadowMapView = this.shadowMap.createView();
-      this.shadowPassBuffer = this.scope.own(device.createBuffer({
-        label: "ShadowPassBuffer",
-        size: modelLayout.byteSize,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      }));
+      this.shadowPassBuffer = this.scope.own(
+        device.createBuffer({
+          label: "ShadowPassBuffer",
+          size: modelLayout.byteSize,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        }),
+      );
       this.shadowPassBindGroup = device.createBindGroup({
         label: "ShadowPassBindGroup",
         layout: StandardLayouts.forDevice(device).shadowPassBindGroupLayout,
         entries: [{ binding: 0, resource: { buffer: this.shadowPassBuffer } }],
       });
 
-      this.lightBuffer = this.scope.own(device.createBuffer({
-        label: "LightBuffer",
-        size: Light.DataSize,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      }));
-      this.cameraBuffer = this.scope.own(device.createBuffer({
-        label: "GlobalCameraBuffer",
-        size: cameraLayout.byteSize,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      }));
-      this.timeBuffer = this.scope.own(device.createBuffer({
-        label: "GlobalTimeBuffer",
-        size: this.timeData.byteLength,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      }));
+      this.lightBuffer = this.scope.own(
+        device.createBuffer({
+          label: "LightBuffer",
+          size: Light.DataSize,
+          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        }),
+      );
+      this.cameraBuffer = this.scope.own(
+        device.createBuffer({
+          label: "GlobalCameraBuffer",
+          size: cameraLayout.byteSize,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        }),
+      );
+      this.timeBuffer = this.scope.own(
+        device.createBuffer({
+          label: "GlobalTimeBuffer",
+          size: this.timeData.byteLength,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        }),
+      );
       this.sceneBindGroup = this.createSceneBindGroup();
     } catch (error) {
       this.scope.destroy();
@@ -130,26 +149,31 @@ export class ForwardRenderer {
 
   resize(width: number, height: number) {
     if (this.destroyed) throw new Error("Renderer has been destroyed");
-    width = Math.max(1, width); height = Math.max(1, height);
+    width = Math.max(1, width);
+    height = Math.max(1, height);
     if (this.depthTexture) {
       this.scope.release(this.depthTexture);
     }
-    this.depthTexture = this.scope.own(this.engine.device!.createTexture({
-      label: "DepthTexture",
-      size: [width, height],
-      format: "depth24plus",
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    }));
+    this.depthTexture = this.scope.own(
+      this.engine.device!.createTexture({
+        label: "DepthTexture",
+        size: [width, height],
+        format: "depth24plus",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      }),
+    );
     this.depthTextureView = this.depthTexture.createView();
     if (this.hdrTexture) {
       this.scope.release(this.hdrTexture);
     }
-    this.hdrTexture = this.scope.own(this.engine.device!.createTexture({
-      label: 'HdrTexture',
-      size: [width, height],
-      format: HDR_FORMAT,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    }));
+    this.hdrTexture = this.scope.own(
+      this.engine.device!.createTexture({
+        label: "HdrTexture",
+        size: [width, height],
+        format: HDR_FORMAT,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      }),
+    );
     this.hdrTextureView = this.hdrTexture.createView();
     this.output2Canvas.setInput(this.engine.device!, this.hdrTextureView);
   }
@@ -172,7 +196,11 @@ export class ForwardRenderer {
 
     if (!camera) return;
     this.resources.prepare(scene);
-    if (!this.depthTexture || this.depthTexture.width !== this.engine.canvas.width || this.depthTexture.height !== this.engine.canvas.height) {
+    if (
+      !this.depthTexture ||
+      this.depthTexture.width !== this.engine.canvas.width ||
+      this.depthTexture.height !== this.engine.canvas.height
+    ) {
       this.resize(this.engine.canvas.width, this.engine.canvas.height);
     }
     this.ensureLightCapacity(lights.length);
@@ -182,18 +210,18 @@ export class ForwardRenderer {
     {
       camera.updateMatrix();
       const vpMatrix = camera.getViewProjectionMatrix();
-      cameraLayout.write(this.cameraData, { vp_matrix: vpMatrix, position: camera.position, light_count: lights.length });
+      cameraLayout.write(this.cameraData, {
+        vp_matrix: vpMatrix,
+        position: camera.position,
+        light_count: lights.length,
+      });
       device.queue.writeBuffer(this.cameraBuffer, 0, this.cameraData);
     }
 
     {
       for (let i = 0; i < lights.length; i++) {
         const light = lights[i];
-        device.queue.writeBuffer(
-          this.lightBuffer,
-          i * Light.DataSize,
-          light.packData(),
-        );
+        device.queue.writeBuffer(this.lightBuffer, i * Light.DataSize, light.packData());
       }
       const light = lights[0]; // 目前先只处理第一个光源的阴影
       if (light?.shadowCamera) {
@@ -248,10 +276,10 @@ export class ForwardRenderer {
         {
           view: textureView,
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: 'clear',
-          storeOp: 'store'
-        }
-      ]
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
     });
     outputPass.setBindGroup(0, this.output2Canvas.bindGroup);
     outputPass.setPipeline(this.output2Canvas.pipeline!);
@@ -264,11 +292,20 @@ export class ForwardRenderer {
   private ensureLightCapacity(count: number) {
     if (count <= this.lightCapacity) return;
     const device = this.engine.device!;
-    const limit = Math.floor(Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize) / Light.DataSize);
+    const limit = Math.floor(
+      Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize) /
+        Light.DataSize,
+    );
     if (count > limit) throw new RangeError(`Scene has ${count} lights; device supports ${limit}`);
     const capacity = Math.min(limit, Math.max(count, this.lightCapacity * 2));
     const previous = this.lightBuffer;
-    this.lightBuffer = this.scope.own(device.createBuffer({ label: "LightBuffer", size: Light.DataSize * capacity, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }));
+    this.lightBuffer = this.scope.own(
+      device.createBuffer({
+        label: "LightBuffer",
+        size: Light.DataSize * capacity,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+    );
     this.lightCapacity = capacity;
     this.sceneBindGroup = this.createSceneBindGroup();
     this.scope.release(previous);
@@ -285,12 +322,7 @@ export class ForwardRenderer {
 
     for (const obj of objects) {
       const material = overrideMaterial ?? obj.material;
-      if (
-        !obj.mesh ||
-        !material ||
-        !obj.mesh.vertexBuffer ||
-        !material.pipeline
-      ) {
+      if (!obj.mesh || !material || !obj.mesh.vertexBuffer || !material.pipeline) {
         continue;
       }
 
@@ -312,11 +344,7 @@ export class ForwardRenderer {
     }
   }
 
-  private renderObject(
-    device: GPUDevice,
-    pass: GPURenderPassEncoder,
-    obj: Object3D,
-  ) {
+  private renderObject(device: GPUDevice, pass: GPURenderPassEncoder, obj: Object3D) {
     // 写入最新 Model Matrix
     const modelMatrix = obj.transform.getMatrix();
     modelLayout.write(this.matrixData, { matrix: modelMatrix });
@@ -326,24 +354,15 @@ export class ForwardRenderer {
     pass.setBindGroup(2, obj.modelBindGroup);
 
     // 绘制
-    pass.setVertexBuffer(
-      StandardVertexBufferSlot.Position,
-      obj.mesh!.vertexBuffer!,
-    );
+    pass.setVertexBuffer(StandardVertexBufferSlot.Position, obj.mesh!.vertexBuffer!);
     if (obj.mesh!.normalBuffer) {
-      pass.setVertexBuffer(
-        StandardVertexBufferSlot.Normal,
-        obj.mesh!.normalBuffer!,
-      );
+      pass.setVertexBuffer(StandardVertexBufferSlot.Normal, obj.mesh!.normalBuffer!);
     }
     if (obj.mesh!.uvBuffer) {
       pass.setVertexBuffer(StandardVertexBufferSlot.UV, obj.mesh!.uvBuffer!);
     }
     if (obj.mesh!.tangentBuffer) {
-      pass.setVertexBuffer(
-        StandardVertexBufferSlot.Tangent,
-        obj.mesh!.tangentBuffer!,
-      );
+      pass.setVertexBuffer(StandardVertexBufferSlot.Tangent, obj.mesh!.tangentBuffer!);
     }
 
     if (obj.mesh!.indexBuffer) {

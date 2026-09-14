@@ -13,7 +13,7 @@ async function run() {
   const app = await Application.create(canvas);
   const device = app.engine.device!;
   const errors: string[] = [];
-  device.addEventListener("uncapturederror", event => errors.push(event.error.message));
+  device.addEventListener("uncapturederror", (event) => errors.push(event.error.message));
   const results: string[] = [];
   try {
     const mesh = await new OBJLoader().load("/assets/obj/plane.obj");
@@ -49,11 +49,14 @@ async function run() {
     if (error) throw new Error(error.message);
     results.push("移除、回收、重新加入、调整尺寸通过");
     if (errors.length) throw new Error(errors.join("\n"));
-  } finally { app.destroy(); app.destroy(); }
+  } finally {
+    app.destroy();
+    app.destroy();
+  }
   results.push("重复销毁通过");
   document.querySelector("pre")!.textContent = "PASS\n" + results.join("\n");
 }
-run().catch(error => {
+run().catch((error) => {
   document.querySelector("pre")!.textContent = `FAIL\n${error.stack ?? error}`;
   console.error(error);
 });
