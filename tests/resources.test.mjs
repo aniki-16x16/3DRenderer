@@ -284,6 +284,30 @@ test("asset textures outlive scene collection and borrowed renderer; replacement
   assert.ok(f.textures.every(t => t.destroyed === 1));
 });
 
+test("clearing the environment restores black and unchanged frames reuse bindings", () => {
+  const f = fixture();
+  const renderer = new ForwardRenderer(f.engine);
+  const scene = new Scene();
+  scene.activeCamera = new Camera();
+  const environment = renderer.textures.createSolid([255, 0, 0, 255]);
+  try {
+    for (const texture of [null, environment, null]) {
+      scene.environment = texture;
+      renderer.render(scene);
+      const group = renderer.sceneBindGroup;
+      assert.equal(
+        group.entries.find(entry => entry.binding === 7).resource,
+        (texture ?? renderer.textures.black).view,
+      );
+      renderer.render(scene);
+      assert.equal(renderer.sceneBindGroup, group);
+    }
+    assert.equal(environment.destroyed, false);
+  } finally {
+    renderer.destroy();
+  }
+});
+
 test("standalone renderer owns its default textures and rejects foreign-device assets", () => {
   const f = fixture();
   const renderer = new ForwardRenderer(f.engine);

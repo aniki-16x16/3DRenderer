@@ -12,6 +12,7 @@ export class TextureResources {
   private readonly scope = new ResourceScope();
   private readonly pending = new Set<AbortController>();
   private whiteTexture?: Texture;
+  private blackTexture?: Texture;
   private normalTexture?: Texture;
 
   readonly device: GPUDevice;
@@ -110,6 +111,14 @@ export class TextureResources {
     }));
   }
 
+  get black(): Texture {
+    this.assertOpen();
+    return (this.blackTexture ??= this.createSolid([0, 0, 0, 255], {
+      label: "black",
+      colorSpace: "srgb",
+    }));
+  }
+
   get normal(): Texture {
     this.assertOpen();
     return (this.normalTexture ??= this.createSolid([128, 128, 255, 255], { label: "normal" }));
@@ -117,7 +126,7 @@ export class TextureResources {
 
   /** 调用者必须先移除所有使用引用、刷新绑定。默认纹理随集合释放。 */
   release(texture: Texture) {
-    if (texture === this.whiteTexture || texture === this.normalTexture)
+    if (texture === this.whiteTexture || texture === this.blackTexture || texture === this.normalTexture)
       throw new Error("Default textures are released with TextureResources");
     this.scope.release(texture);
   }

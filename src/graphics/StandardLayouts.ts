@@ -62,6 +62,16 @@ export class StandardLayouts {
           visibility: GPUShaderStage.FRAGMENT,
           buffer: { type: "uniform" },
         },
+        {
+          binding: 7,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {}
+        },
+        {
+          binding: 8,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: { type: 'filtering' }
+        }
       ],
     });
 

@@ -41,6 +41,8 @@ struct LightData {
 @group(0) @binding(4) var shadow_map: texture_depth_2d;
 @group(0) @binding(5) var shadow_sampler: sampler_comparison;
 @group(0) @binding(6) var<uniform> shadowVPMatrix: mat4x4f;
+@group(0) @binding(7) var environment_map: texture_2d<f32>;
+@group(0) @binding(8) var environment_sampler: sampler;
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
@@ -60,29 +62,36 @@ const PI = 3.1415926535897932384626433;
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
-  var acc = vec3f(0);
-  for (var i: u32 = 0; i < camera.light_count; i += 1) {
-    let light = lights[i];
-    let N = normalize(input.n_world);
-    let L = -light.direction;
-    let V = normalize(camera.position - input.world_position);
-    let H = normalize(V + L);
-    let NoV = clamp(dot(N, V), 0, 1);
-    let NoL = clamp(dot(N, L), 0, 1);
+  // var acc = vec3f(0);
+  // for (var i: u32 = 0; i < camera.light_count; i += 1) {
+  //   let light = lights[i];
+  //   let N = normalize(input.n_world);
+  //   let L = -light.direction;
+  //   let V = normalize(camera.position - input.world_position);
+  //   let H = normalize(V + L);
+  //   let NoV = clamp(dot(N, V), 0, 1);
+  //   let NoL = clamp(dot(N, L), 0, 1);
 
-    let F = fresnelSchlick(V, H);
-    let D = distributionGGX(N, H);
-    let G = geometrySmith(NoV, NoL);
-    let specular = D * G * F / max(4 * NoV * NoL, 1e-4);
-    let ks = F;
-    let kd = (1 - ks) * (1 - material.metallic);
-    let diffuse = kd * material.base_color.rgb / PI;
+  //   let F = fresnelSchlick(V, H);
+  //   let D = distributionGGX(N, H);
+  //   let G = geometrySmith(NoV, NoL);
+  //   let specular = D * G * F / max(4 * NoV * NoL, 1e-4);
+  //   let ks = F;
+  //   let kd = (1 - ks) * (1 - material.metallic);
+  //   let diffuse = kd * material.base_color.rgb / PI;
 
-    let Li = light.color * light.intensity;
-    let Lo = (diffuse + specular) * Li * NoL;
-    acc += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
+  //   let Li = light.color * light.intensity;
+  //   let Lo = (diffuse + specular) * Li * NoL;
+  //   acc += select(vec3f(0, 0, 0), Lo, NoV > 0 && NoL > 0);
+  // }
+  // return vec4f(acc, 1);
+  let N = normalize(input.n_world);
+  var u = 0.0;
+  if (abs(N.x) > 0 || abs(N.z) > 0) {
+    u = atan2(N.z, N.x) / PI * 0.5 + 0.5;
   }
-  return vec4f(acc, 1);
+  let v = acos(clamp(N.y, -1, 1)) / PI;
+  return vec4f(textureSample(environment_map, environment_sampler, vec2f(u, v)).rgb, 1);
 }
 
 fn fresnelSchlick(V: vec3f, H: vec3f) -> vec3f {

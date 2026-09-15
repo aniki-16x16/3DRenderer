@@ -1,5 +1,5 @@
 import { Application } from "./app/Application";
-import { PBRScene } from "./scenes/PBRScene";
+import { IBLScene } from "./scenes/IBLScene";
 import "./style.css";
 
 let disposed = false;
@@ -22,7 +22,7 @@ async function main() {
   window.addEventListener("pagehide", cleanup, { once: true });
   app.scope.defer(() => window.removeEventListener("pagehide", cleanup));
   // 启动时选择一个代码场景；场景负责自己的内容与 GUI。
-  await app.start(new PBRScene());
+  await app.start(new IBLScene());
 }
 
 main().catch((error) => {

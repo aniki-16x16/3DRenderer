@@ -37,6 +37,8 @@ export class ForwardRenderer {
 
   private hdrTexture: GPUTexture | null = null;
   private hdrTextureView: GPUTextureView | null = null;
+
+  private environmentTextureView: GPUTextureView | null = null;
   /**
    * 存放光源的VP矩阵
    */
@@ -56,7 +58,6 @@ export class ForwardRenderer {
   private resourceLabel(role: string): string {
     return resourceLabel("ForwardRenderer", role);
   }
-
 
   constructor(engine: Engine, textures?: TextureResources) {
     this.engine = engine;
@@ -167,6 +168,8 @@ export class ForwardRenderer {
           resource: getSamplers(device).comparison,
         },
         { binding: 6, resource: { buffer: this.shadowPassBuffer } },
+        { binding: 7, resource: this.environmentTextureView ?? this.textures.black.view },
+        { binding: 8, resource: getSamplers(device).environment },
       ],
     });
   }
@@ -234,6 +237,8 @@ export class ForwardRenderer {
 
     const textureView = context.getCurrentTexture().createView();
     const commandEncoder = device.createCommandEncoder();
+
+    this.syncEnvironment(scene);
 
     this.renderShadowPass(commandEncoder, renderObjects);
     this.renderScenePass(commandEncoder, renderObjects);
@@ -407,5 +412,12 @@ export class ForwardRenderer {
       }
       return a.material.TAG < b.material.TAG ? -1 : 1;
     });
+  }
+
+  private syncEnvironment(scene: Scene) {
+    const view = scene.environment?.view ?? this.textures.black.view;
+    if (view === this.environmentTextureView) return;
+    this.environmentTextureView = view;
+    this.sceneBindGroup = this.createSceneBindGroup();
   }
 }
