@@ -57,30 +57,35 @@ export class SceneResources {
 
   prepare(scene: Scene) {
     if (this.scope.destroyed) throw new Error("SceneResources has been destroyed");
+    const preparedMaterials = new Set<Material>();
     for (const object of scene.objects) {
       const { mesh, material } = object;
       if (!mesh || !material) continue;
       this.ensure(mesh, () => mesh.initialize(this.device));
-      material.prepareResources(this.device, this.textures);
-      this.ensure(material, () => {
-        const code =
-          this.customShaders.get(material) ??
-          (material instanceof PBRMaterial
-            ? pbr
-            : material instanceof PhongMaterial
-              ? phong
-              : material instanceof SolidColorMaterial
-                ? solid
-                : undefined);
-        if (code === undefined)
-          throw new Error(`Register a shader for ${material.label} before rendering`);
-        let shader = this.shaders.get(code);
-        if (!shader) {
-          shader = new Shader(this.device, material.label, code);
-          this.shaders.set(code, shader);
-        }
-        material.initialize(this.device, this.format, shader);
-      });
+      if (!preparedMaterials.has(material)) {
+        material.prepareResources(this.device, this.textures);
+        this.ensure(material, () => {
+          const code =
+            this.customShaders.get(material) ??
+            (material instanceof PBRMaterial
+              ? pbr
+              : material instanceof PhongMaterial
+                ? phong
+                : material instanceof SolidColorMaterial
+                  ? solid
+                  : undefined);
+          if (code === undefined)
+            throw new Error(`Register a shader for ${material.label} before rendering`);
+          let shader = this.shaders.get(code);
+          if (!shader) {
+            shader = new Shader(this.device, material.label, code);
+            this.shaders.set(code, shader);
+          }
+          material.initialize(this.device, this.format, shader);
+        });
+        material.syncUniforms(this.device);
+        preparedMaterials.add(material);
+      }
       this.ensure(object, () => object.initialize(this.device));
     }
   }

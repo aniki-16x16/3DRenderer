@@ -15,7 +15,7 @@ await app.start(new PBRScene());
 
 继承 `Scene`，在 `setup(context)` 中组织内容、加载文件并建立 GUI。可选覆盖 `update(deltaSeconds, elapsedSeconds)` 进行逐帧更新。初始化完成后才会开始渲染。
 
-`SceneContext` 只提供 canvas、共享资产集合 textures、取消信号 signal 和曝光设置入口 setExposure。场景不需要持有整个 Application 或 Renderer。
+`SceneContext` 只提供 canvas、共享资产集合 textures 和取消信号 signal。场景不需要持有整个 Application 或 Renderer。
 
 ```ts
 export class MyScene extends Scene {
@@ -48,3 +48,21 @@ setup 内的异步操作应传入 signal（OBJLoader 已支持）。自定义加
 ## 验证
 
 `npm test` 验证初始化、失败、加载中关闭、重复启动和资源释放。`/tests/browser.html` 验证原有 GPU 回归以及 PBRScene 的内容、渲染、GUI 和控制器清理。
+
+
+## GUI 参数绑定
+
+曝光属于场景，材质参数属于材质。GUI 直接绑定真实状态，不需要 onChange 回调、手动上传或 needsUpdate：
+
+```ts
+this.output.exposure = 3;
+gui.add(this.output, "exposure", 0, 10, 0.1);
+gui.add(material, "metallic", 0, 1, 0.01);
+gui.add(material, "roughness", 0.05, 1, 0.01);
+```
+
+修改 `material.baseColor[0]` 等数组元素同样会在下一帧生效。多个物体共享同一个材质时，修改会影响所有使用者；希望独立调参就创建独立材质实例。当前 PBRScene 保留原有兔子参数阵列，未给全部兔子强加统一参数控件。
+
+每帧先执行 Scene.update，再准备材质资源、同步 Uniform，最后绘制。PBR、Phong、SolidColor 通过 syncUniforms 读取自身字段，UniformSync 复用暂存区并比较上次上传的字节，仅变化时上传。同一材质每帧只检查一次；首次使用和 GPU Buffer 重建后自动重新上传。数字修改不重建 Pipeline 或 BindGroup，纹理替换继续单独刷新绑定。
+
+Application / SceneContext / Renderer 不再提供 setExposure。Output Pass 从 `scene.output` 读取输出设置，默认 exposure 为 1。若绕过 Renderer 直接使用材质，需要初始化后、绘制前自行调用 syncUniforms(device)。新增材质可实现同一接口；这套同步目前只覆盖已有 Uniform 数值，不负责自动重建因管线配置变化而失效的 Pipeline。

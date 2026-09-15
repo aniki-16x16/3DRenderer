@@ -1,3 +1,4 @@
+import { UniformSync } from "../graphics/UniformSync";
 import { solidColorLayout } from "../graphics/BufferLayouts";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
@@ -14,6 +15,7 @@ export class SolidColorMaterial extends Material {
 
   color: Float32Array | null = null;
   uniformBuffer: GPUBuffer | null = null;
+  private readonly uniformSync = new UniformSync(solidColorLayout.byteSize);
 
   constructor(props: Props) {
     super(props.label ?? "SolidColorMaterial");
@@ -28,10 +30,7 @@ export class SolidColorMaterial extends Material {
       label: this.resourceLabel("uniform-buffer"),
       size: solidColorLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
     });
-    solidColorLayout.write(this.uniformBuffer.getMappedRange(), { color: this.color! });
-    this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
     this.bindGroupLayout = this.getMaterialLayout(device, [
@@ -45,6 +44,11 @@ export class SolidColorMaterial extends Material {
     super.initialize(device, format, shader);
   }
 
+  override syncUniforms(device: GPUDevice) {
+    if (!this.uniformBuffer) throw new Error("Material is not initialized");
+    solidColorLayout.write(this.uniformSync.data, { color: this.color! });
+    this.uniformSync.upload(device, this.uniformBuffer);
+  }
   protected createBindGroup(device: GPUDevice) {
     this.bindGroup = device.createBindGroup({
       label: this.resourceLabel("bind-group"),
@@ -61,6 +65,7 @@ export class SolidColorMaterial extends Material {
   override destroy() {
     this.uniformBuffer?.destroy();
     this.uniformBuffer = null;
+    this.uniformSync.reset();
     super.destroy();
   }
 }

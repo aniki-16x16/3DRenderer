@@ -54,6 +54,9 @@ export class Material {
   /** 渲染前解析借用资源；子类可在引用变化时刷新绑定，不接管资源所有权。 */
   prepareResources(_device: GPUDevice, _textures: TextureResources): void {}
 
+  /** 初始化后、绘制前同步当前参数；调用者不需要标记 needsUpdate。 */
+  syncUniforms(_device: GPUDevice): void {}
+
   /**
    * 初始化
    * @param device

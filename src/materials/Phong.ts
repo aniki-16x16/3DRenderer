@@ -1,3 +1,4 @@
+import { UniformSync } from "../graphics/UniformSync";
 import { phongLayout } from "../graphics/BufferLayouts";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
@@ -20,6 +21,7 @@ export class PhongMaterial extends Material {
   specColor: Float32Array | null = null;
   shininess: number = 32.0;
   uniformBuffer: GPUBuffer | null = null;
+  private readonly uniformSync = new UniformSync(phongLayout.byteSize);
   texture: Texture | null = null;
   normalTexture: Texture | null = null;
   private colorView?: GPUTextureView;
@@ -61,14 +63,7 @@ export class PhongMaterial extends Material {
       label: this.resourceLabel("uniform-buffer"),
       size: phongLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
     });
-    phongLayout.write(this.uniformBuffer.getMappedRange(), {
-      color: this.color!,
-      spec_color: this.specColor!,
-      shininess: this.shininess,
-    });
-    this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
     this.bindGroupLayout = this.getMaterialLayout(device, [
@@ -92,6 +87,15 @@ export class PhongMaterial extends Material {
     super.initialize(device, format, shader);
   }
 
+  override syncUniforms(device: GPUDevice) {
+    if (!this.uniformBuffer) throw new Error("Material is not initialized");
+    phongLayout.write(this.uniformSync.data, {
+      color: this.color!,
+      spec_color: this.specColor!,
+      shininess: this.shininess,
+    });
+    this.uniformSync.upload(device, this.uniformBuffer);
+  }
   protected createBindGroup(device: GPUDevice) {
     if (!this.colorView || !this.normalView)
       throw new Error("Prepare material resources before initialization");
@@ -124,6 +128,7 @@ export class PhongMaterial extends Material {
     this.normalView = undefined;
     this.uniformBuffer?.destroy();
     this.uniformBuffer = null;
+    this.uniformSync.reset();
     super.destroy();
   }
 }

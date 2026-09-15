@@ -1,6 +1,8 @@
 import { resourceLabel } from "../foundation/ResourceLabels";
 import { exposureLayout } from "./BufferLayouts";
 import type { Shader } from "./Shader";
+import { UniformSync } from "./UniformSync";
+import type { OutputSettings } from "../core/OutputSettings";
 
 export class Output2Canvas {
   label: string;
@@ -9,7 +11,7 @@ export class Output2Canvas {
   private bindGroup: GPUBindGroup | null = null;
   private pipeline: GPURenderPipeline | null = null;
   private exposureBuffer: GPUBuffer | null = null;
-  private exposureData = new Float32Array(1);
+  private readonly uniformSync = new UniformSync(exposureLayout.byteSize);
 
   protected resourceLabel(role: string): string {
     return resourceLabel(this.label, role);
@@ -93,29 +95,27 @@ export class Output2Canvas {
     });
   }
 
-  setExposure(exposure: number) {
-    const device = this.requireDevice();
-    this.exposureData[0] = exposure;
-    device.queue.writeBuffer(this.exposureBuffer!, 0, this.exposureData);
-  }
-
   private requireDevice(): GPUDevice {
     if (!this.device) throw new Error("Output is not initialized or has been destroyed");
     return this.device;
   }
 
   /** 调用方只提供目标，输出绑定由本对象管理。 */
-  render(encoder: GPUCommandEncoder, target: GPUTextureView) {
-    this.requireDevice();
+  render(encoder: GPUCommandEncoder, target: GPUTextureView, settings: Readonly<OutputSettings>) {
+    const device = this.requireDevice();
     if (!this.pipeline || !this.bindGroup) throw new Error("Set output input before rendering");
+    exposureLayout.write(this.uniformSync.data, { exposure: settings.exposure });
+    this.uniformSync.upload(device, this.exposureBuffer!);
     const pass = encoder.beginRenderPass({
       label: this.resourceLabel("pass"),
-      colorAttachments: [{
-        view: target,
-        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-        loadOp: "clear",
-        storeOp: "store",
-      }],
+      colorAttachments: [
+        {
+          view: target,
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
     });
     pass.setBindGroup(0, this.bindGroup);
     pass.setPipeline(this.pipeline);
@@ -127,6 +127,7 @@ export class Output2Canvas {
     this.device = null;
     this.exposureBuffer?.destroy();
     this.exposureBuffer = null;
+    this.uniformSync.reset();
     this.bindGroupLayout = null;
     this.bindGroup = null;
     this.pipeline = null;

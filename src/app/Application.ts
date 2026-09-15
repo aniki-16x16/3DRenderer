@@ -52,7 +52,6 @@ export class Application {
       await scene.initialize({
         canvas: this.engine.canvas,
         textures: this.textures,
-        setExposure: (value) => this.renderer.setExposure(value),
       });
       if (this.scope.destroyed)
         throw new DOMException("Application was destroyed during scene setup", "AbortError");

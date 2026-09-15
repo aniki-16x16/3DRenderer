@@ -15,7 +15,7 @@ export class PBRScene extends Scene {
     super("PBR 材质演示");
   }
 
-  protected override async setup({ canvas, setExposure, signal }: SceneContext) {
+  protected override async setup({ canvas, signal }: SceneContext) {
     const scope = this.scope;
     const camera = new Camera();
     camera.position = vec3.create(0, 4, 8);
@@ -47,17 +47,8 @@ export class PBRScene extends Scene {
     cameraFolder.add(camera, "near", 0.1, 1).name("Near");
     cameraFolder.add(camera, "far", 1, 100).name("Far");
     const outputFolder = gui.addFolder("Output");
-    const outputConfig = {
-      exposure: 3,
-    };
-    const updateExposure = (value: number) => {
-      setExposure(value);
-    };
-    updateExposure(outputConfig.exposure);
-    outputFolder
-      .add(outputConfig, "exposure", 0, 10, 0.1)
-      .name("Exposure")
-      .onChange(updateExposure);
+    this.output.exposure = 3;
+    outputFolder.add(this.output, "exposure", 0, 10, 0.1).name("Exposure");
 
     const bunnyMesh = await new OBJLoader().load("/assets/obj/bunny_10k.obj", signal);
     signal.throwIfAborted();

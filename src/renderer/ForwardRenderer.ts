@@ -57,11 +57,6 @@ export class ForwardRenderer {
     return resourceLabel("ForwardRenderer", role);
   }
 
-  /** UI 提交参数，无需访问 GPU 资源。 */
-  setExposure(value: number) {
-    if (this.destroyed) throw new Error("Renderer has been destroyed");
-    this.output2Canvas.setExposure(value);
-  }
 
   constructor(engine: Engine, textures?: TextureResources) {
     this.engine = engine;
@@ -243,7 +238,7 @@ export class ForwardRenderer {
     this.renderShadowPass(commandEncoder, renderObjects);
     this.renderScenePass(commandEncoder, renderObjects);
 
-    this.output2Canvas.render(commandEncoder, textureView);
+    this.output2Canvas.render(commandEncoder, textureView, scene.output);
 
     device.queue.submit([commandEncoder.finish()]);
   }

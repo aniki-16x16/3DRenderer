@@ -3,19 +3,20 @@ import { Camera } from "./Camera";
 import { Light } from "./Light";
 import type { Texture } from "../graphics/Texture";
 import type { TextureResources } from "../graphics/TextureResources";
+import type { OutputSettings } from "./OutputSettings";
 import { ResourceScope } from "../foundation/ResourceScope";
 
 export interface SceneContext {
   readonly canvas: HTMLCanvasElement;
   readonly textures: TextureResources;
   readonly signal: AbortSignal;
-  readonly setExposure: (value: number) => void;
 }
 
 export type SceneState = "new" | "loading" | "ready" | "destroyed";
 
 export class Scene {
   readonly name: string;
+  readonly output: OutputSettings = { exposure: 1 };
   /** 场景拥有 GUI、控制器等辅助资源；不要重复登记 Renderer 接管的 Mesh/Material。 */
   protected readonly scope = new ResourceScope();
   private readonly abortController = new AbortController();

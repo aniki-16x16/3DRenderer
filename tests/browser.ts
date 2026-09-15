@@ -38,6 +38,26 @@ async function run() {
         if (error) throw new Error(`${material.TAG}/${count}: ${error.message}`);
       }
       results.push(`${material.TAG}: 0 → 1 → 3 → 1 → 0 → 5 光源通过`);
+      device.pushErrorScope("validation");
+      const pipeline = material.pipeline;
+      const group = material.bindGroup;
+      if (material instanceof PBRMaterial) {
+        material.metallic = 0.8;
+        material.roughness = 0.2;
+        material.baseColor[0] = 0.3;
+      } else if (material instanceof PhongMaterial) {
+        material.shininess = 16;
+        material.color![1] = 0.4;
+      } else {
+        material.color![2] = 0.5;
+      }
+      scene.output.exposure = 2;
+      app.renderer.render(scene);
+      await device.queue.onSubmittedWorkDone();
+      const parameterError = await device.popErrorScope();
+      if (parameterError) throw new Error(parameterError.message);
+      if (material.pipeline !== pipeline || material.bindGroup !== group)
+        throw new Error("Parameter update recreated pipeline or bindings");
     }
     device.pushErrorScope("validation");
     scene.remove(object);
@@ -49,6 +69,7 @@ async function run() {
     const error = await device.popErrorScope();
     if (error) throw new Error(error.message);
     results.push("移除、回收、重新加入、调整尺寸通过");
+    results.push("三种材质与曝光直接修改参数、保持 Pipeline/BindGroup 通过");
     device.pushErrorScope("validation");
     const imageCanvas = document.createElement("canvas");
     imageCanvas.width = imageCanvas.height = 2;

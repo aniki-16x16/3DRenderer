@@ -1,3 +1,4 @@
+import { UniformSync } from "../graphics/UniformSync";
 import { pbrLayout } from "../graphics/BufferLayouts";
 import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
@@ -16,6 +17,7 @@ export class PBRMaterial extends Material {
   metallic: number;
   roughness: number;
   uniformBuffer: GPUBuffer | null = null;
+  private readonly uniformSync = new UniformSync(pbrLayout.byteSize);
 
   constructor(props: Props) {
     super(props.label ?? "PBRMaterial");
@@ -31,14 +33,7 @@ export class PBRMaterial extends Material {
       label: this.resourceLabel("uniform-buffer"),
       size: pbrLayout.byteSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
     });
-    pbrLayout.write(this.uniformBuffer.getMappedRange(), {
-      base_color: this.baseColor,
-      metallic: this.metallic,
-      roughness: this.roughness,
-    });
-    this.uniformBuffer.unmap();
 
     // 2. 创建 BindGroupLayout (Group 1)
     this.bindGroupLayout = this.getMaterialLayout(device, [
@@ -52,6 +47,15 @@ export class PBRMaterial extends Material {
     super.initialize(device, format, shader);
   }
 
+  override syncUniforms(device: GPUDevice) {
+    if (!this.uniformBuffer) throw new Error("Material is not initialized");
+    pbrLayout.write(this.uniformSync.data, {
+      base_color: this.baseColor,
+      metallic: this.metallic,
+      roughness: this.roughness,
+    });
+    this.uniformSync.upload(device, this.uniformBuffer);
+  }
   protected createBindGroup(device: GPUDevice) {
     this.bindGroup = device.createBindGroup({
       label: this.resourceLabel("bind-group"),
@@ -72,6 +76,7 @@ export class PBRMaterial extends Material {
   override destroy() {
     this.uniformBuffer?.destroy();
     this.uniformBuffer = null;
+    this.uniformSync.reset();
     super.destroy();
   }
 }

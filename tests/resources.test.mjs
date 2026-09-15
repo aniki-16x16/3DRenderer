@@ -21,6 +21,7 @@ import { Engine } from "../src/core/Engine.ts";
 import { TextureResources } from "../src/graphics/TextureResources.ts";
 import { PhongMaterial } from "../src/materials/Phong.ts";
 import { Application } from "../src/app/Application.ts";
+import { SolidColorMaterial } from "../src/materials/SolidColor.ts";
 
 test("scope deduplicates, disposes in reverse order and continues after failure", () => {
   const scope = new ResourceScope(),
@@ -446,28 +447,31 @@ test("output preserves exposure and pipeline when its HDR input changes", () => 
   const renderer = new ForwardRenderer(f.engine);
   const scene = new Scene();
   scene.activeCamera = new Camera();
-  renderer.setExposure(3);
+  scene.output.exposure = 3;
   renderer.render(scene);
   const pipelineCount = pipelines.length;
   const before = groups.find(g => g.label === "OutputPass-bind-group");
   const exposure = before.entries[1].resource.buffer;
   assert.equal(new Float32Array(exposure.data)[0], 3);
-  renderer.setExposure(6);
+  scene.output.exposure = 6;
   f.engine.canvas.width = 200;
   renderer.render(scene);
   const after = groups.filter(g => g.label === "OutputPass-bind-group").at(-1);
   assert.notEqual(before.entries[0].resource, after.entries[0].resource);
   assert.equal(after.entries[1].resource.buffer, exposure);
   assert.equal(new Float32Array(exposure.data)[0], 6);
+  const writeCount = f.writes.filter(buffer => buffer === exposure).length;
+  renderer.render(scene);
+  assert.equal(f.writes.filter(buffer => buffer === exposure).length, writeCount);
   assert.equal(pipelines.length, pipelineCount);
   const outputPasses = passes.filter(p => p.label === "OutputPass-pass");
-  assert.equal(outputPasses.length, 2);
+  assert.equal(outputPasses.length, 3);
   assert.equal(outputPasses[0].depthStencilAttachment, undefined);
-  assert.deepEqual(commands.filter(c => c[0] === "draw"), [["draw", 3], ["draw", 3]]);
+  assert.deepEqual(commands.filter(c => c[0] === "draw"), [["draw", 3], ["draw", 3], ["draw", 3]]);
   renderer.destroy();
   renderer.destroy();
   assert.equal(exposure.destroyed, 1);
-  assert.throws(() => renderer.setExposure(1), /destroyed/);
+  assert.throws(() => renderer.render(scene), /destroyed/);
 });
 
 test("material pipeline cache shares identical state and separates rendering contracts", async () => {
@@ -491,4 +495,49 @@ test("material pipeline cache shares identical state and separates rendering con
   assert.notEqual(first.pipeline, make("rgba16float", () => {}, new Shader(f.device, "same-label", "")).pipeline);
   const otherLayout = f.device.createBindGroupLayout({ entries: [] });
   assert.notEqual(first.pipeline, make("rgba16float", () => {}, shader, otherLayout).pipeline);
+});
+
+
+test("all material properties synchronize once per frame without rebuilding GPU resources", () => {
+  const cases = [
+    { material: new PBRMaterial({ baseColor: [1, 1, 1, 1], metallic: 0, roughness: 0.5 }),
+      change(m) { m.baseColor[0] = 0.25; m.metallic = 0.75; m.roughness = 0.125; },
+      expected: [[0, 0.25], [16, 0.75], [20, 0.125]] },
+    { material: new PhongMaterial({ color: [1, 1, 1] }),
+      change(m) { m.color[1] = 0.25; m.specColor[2] = 0.5; m.shininess = 16; },
+      expected: [[4, 0.25], [24, 0.5], [28, 16]] },
+    { material: new SolidColorMaterial({ r: 1, g: 1, b: 1 }),
+      change(m) { m.color[0] = 0.125; }, expected: [[0, 0.125]] },
+  ];
+  for (const { material, change, expected } of cases) {
+    const f = fixture(), renderer = new ForwardRenderer(f.engine), scene = new Scene();
+    scene.activeCamera = new Camera();
+    const mesh = new Mesh([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+    const first = new Object3D("first", mesh, material), second = new Object3D("second", mesh, material);
+    scene.add(first).add(second);
+    let syncs = 0;
+    const originalSync = material.syncUniforms.bind(material);
+    material.syncUniforms = device => { syncs++; originalSync(device); };
+    renderer.render(scene);
+    const buffer = material.uniformBuffer, pipeline = material.pipeline, group = material.bindGroup;
+    assert.equal(syncs, 1);
+    assert.equal(f.writes.filter(b => b === buffer).length, 1);
+    renderer.render(scene);
+    assert.equal(f.writes.filter(b => b === buffer).length, 1);
+    change(material);
+    renderer.render(scene);
+    assert.equal(syncs, 3);
+    assert.equal(f.writes.filter(b => b === buffer).length, 2);
+    assert.equal(material.uniformBuffer, buffer);
+    assert.equal(material.pipeline, pipeline);
+    assert.equal(material.bindGroup, group);
+    for (const [offset, value] of expected) assert.equal(new DataView(buffer.data).getFloat32(offset, true), value);
+    scene.remove(first).remove(second);
+    renderer.resources.releaseUnused(scene);
+    scene.add(first);
+    renderer.render(scene);
+    assert.notEqual(material.uniformBuffer, buffer);
+    for (const [offset, value] of expected) assert.equal(new DataView(material.uniformBuffer.data).getFloat32(offset, true), value);
+    renderer.destroy();
+  }
 });
