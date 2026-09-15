@@ -18,6 +18,8 @@ import { Object3D } from "../src/core/Object3D.ts";
 import { PBRMaterial } from "../src/materials/PBR.ts";
 import { StandardLayouts } from "../src/graphics/StandardLayouts.ts";
 import { Engine } from "../src/core/Engine.ts";
+import { TextureResources } from "../src/graphics/TextureResources.ts";
+import { PhongMaterial } from "../src/materials/Phong.ts";
 
 test("scope deduplicates, disposes in reverse order and continues after failure", () => {
   const scope = new ResourceScope(),
@@ -123,6 +125,7 @@ function fixture() {
     createShaderModule: (d) => ({ ...d }),
     createCommandEncoder: () => ({ beginRenderPass: () => pass, finish: () => ({}) }),
     queue: {
+      writeTexture() {},
       submit() {},
       writeBuffer(buffer, offset, data) {
         const bytes = new Uint8Array(data.buffer ?? data, data.byteOffset ?? 0, data.byteLength);
@@ -168,6 +171,58 @@ test("renderer grows lights, uploads actual count after shrink and handles zero"
   renderer.destroy();
   assert.ok(f.buffers.every((b) => b.destroyed === 1));
   assert.ok(f.textures.every((t) => t.destroyed === 1));
+});
+
+test("asset textures outlive scene collection and borrowed renderer; replacement refreshes only bindings", () => {
+  const f = fixture();
+  const assets = new TextureResources(f.device);
+  const renderer = new ForwardRenderer(f.engine, assets);
+  const scene = new Scene();
+  scene.activeCamera = new Camera();
+  const first = assets.createSolid([255, 0, 0, 255]);
+  const second = assets.createSolid([0, 255, 0, 255]);
+  scene.environment = first;
+  const material = new PhongMaterial({ color: [1, 1, 1], texture: first });
+  const mesh = new Mesh([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  const object = new Object3D("texture-test", mesh, material);
+  scene.add(object);
+  renderer.render(scene);
+  const group = material.bindGroup, pipeline = material.pipeline, uniform = material.uniformBuffer;
+  material.texture = second;
+  renderer.render(scene);
+  assert.notEqual(material.bindGroup, group);
+  assert.equal(material.bindGroup.entries[1].resource, second.view);
+  assert.equal(material.pipeline, pipeline);
+  assert.equal(material.uniformBuffer, uniform);
+  const replacementGroup = material.bindGroup;
+  renderer.render(scene);
+  assert.equal(material.bindGroup, replacementGroup);
+  scene.remove(object);
+  renderer.resources.releaseUnused(scene);
+  assert.equal(first.destroyed, false);
+  assert.equal(second.destroyed, false);
+  scene.add(object);
+  material.texture = null;
+  renderer.render(scene);
+  assert.equal(material.bindGroup.entries[1].resource, assets.white.view);
+  renderer.destroy();
+  assert.equal(assets.normal.destroyed, false);
+  assert.equal(first.destroyed, false);
+  assets.destroy();
+  assets.destroy();
+  assert.ok(f.textures.every(t => t.destroyed === 1));
+});
+
+test("standalone renderer owns its default textures and rejects foreign-device assets", () => {
+  const f = fixture();
+  const renderer = new ForwardRenderer(f.engine);
+  const white = renderer.textures.white, normal = renderer.textures.normal;
+  renderer.destroy();
+  assert.equal(white.destroyed, true);
+  assert.equal(normal.destroyed, true);
+  const foreign = new TextureResources(fixture().device);
+  assert.throws(() => new ForwardRenderer(f.engine, foreign), /another GPUDevice/);
+  foreign.destroy();
 });
 
 test("shared mesh/material initialize once; collection retains live references", () => {

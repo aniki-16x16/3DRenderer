@@ -11,7 +11,8 @@ import { Object3D } from "../core/Object3D";
 import { StandardLayouts } from "../graphics/StandardLayouts";
 import { ShadowMaterial } from "../materials/Shadow";
 import { Light } from "../core/Light";
-import { getSamplers } from "../graphics/Texture";
+import { getSamplers } from "../graphics/Samplers";
+import { TextureResources } from "../graphics/TextureResources";
 import type { Material } from "../graphics/Material";
 import { StandardVertexBufferSlot } from "../graphics/StandardVertexLayout";
 import { Output2Canvas } from "../graphics/Output2Canvas";
@@ -49,6 +50,7 @@ export class ForwardRenderer {
   private destroyed = false;
   private shadowMaterial = new ShadowMaterial();
   readonly resources: SceneResources;
+  readonly textures: TextureResources;
   private readonly output2Canvas: Output2Canvas = new Output2Canvas("OutputPass");
 
   private resourceLabel(role: string): string {
@@ -61,13 +63,17 @@ export class ForwardRenderer {
     this.output2Canvas.setExposure(value);
   }
 
-  constructor(engine: Engine) {
+  constructor(engine: Engine, textures?: TextureResources) {
     this.engine = engine;
     const device = engine.device;
     if (!device || !engine.format || !engine.context)
       throw new Error("Initialize Engine before constructing ForwardRenderer");
     try {
-      this.resources = this.scope.own(new SceneResources(device, HDR_FORMAT));
+      if (textures && textures.device !== device)
+        throw new Error("TextureResources belongs to another GPUDevice");
+      // 独立创建 Renderer 时提供自有集合；Application 传入的集合只借用。
+      this.textures = textures ?? this.scope.own(new TextureResources(device));
+      this.resources = this.scope.own(new SceneResources(device, HDR_FORMAT, this.textures));
       this.scope.own(this.output2Canvas);
       this.output2Canvas.initialize(
         device,
@@ -218,6 +224,7 @@ export class ForwardRenderer {
     const { activeCamera: camera, lights } = scene;
 
     if (!camera) return;
+    scene.environment?.assertUsable(device);
     this.resources.prepare(scene);
     if (
       !this.depthTexture ||

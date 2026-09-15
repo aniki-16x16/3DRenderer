@@ -1,4 +1,5 @@
 import { ResourceScope } from "../foundation/ResourceScope";
+import type { TextureResources } from "../graphics/TextureResources";
 import type { Scene } from "../core/Scene";
 import { Material } from "../graphics/Material";
 import { Shader } from "../graphics/Shader";
@@ -11,7 +12,7 @@ import solid from "../shaders/solid.wgsl?raw";
 
 const owners = new WeakMap<object, SceneResources>();
 
-/** Renderer 拥有首次提交的资源；Scene.remove 仅移除引用，不销毁共享资源。 */
+/** Renderer 接管首次提交的 Mesh/Material/Object；纹理始终借用，不参与场景回收。 */
 export class SceneResources {
   private scope = new ResourceScope();
   private initialized = new WeakSet<object>();
@@ -21,7 +22,10 @@ export class SceneResources {
   private device: GPUDevice;
   private format: GPUTextureFormat;
 
-  constructor(device: GPUDevice, format: GPUTextureFormat) {
+  private textures: TextureResources;
+
+  constructor(device: GPUDevice, format: GPUTextureFormat, textures: TextureResources) {
+    this.textures = textures;
     this.device = device;
     this.format = format;
   }
@@ -57,14 +61,7 @@ export class SceneResources {
       const { mesh, material } = object;
       if (!mesh || !material) continue;
       this.ensure(mesh, () => mesh.initialize(this.device));
-      if (material instanceof PhongMaterial) {
-        for (const texture of [material.texture, material.normalTexture]) {
-          if (texture)
-            this.ensure(texture, () => {
-              if (!texture.view) texture.initialize(this.device);
-            });
-        }
-      }
+      material.prepareResources(this.device, this.textures);
       this.ensure(material, () => {
         const code =
           this.customShaders.get(material) ??
@@ -96,10 +93,6 @@ export class SceneResources {
       if (object.mesh) used.add(object.mesh);
       if (object.material) {
         used.add(object.material);
-        if (object.material instanceof PhongMaterial) {
-          if (object.material.texture) used.add(object.material.texture);
-          if (object.material.normalTexture) used.add(object.material.normalTexture);
-        }
       }
     }
     for (const resource of [...this.owned].reverse()) {

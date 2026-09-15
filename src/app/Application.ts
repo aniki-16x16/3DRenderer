@@ -2,20 +2,28 @@ import { Engine } from "../core/Engine";
 import { ResourceScope } from "../foundation/ResourceScope";
 import { ForwardRenderer } from "../renderer/ForwardRenderer";
 import type { Scene } from "../core/Scene";
+import { TextureResources } from "../graphics/TextureResources";
 
 /** 一个 canvas/device 的生命周期入口。场景对象在首次渲染时自动准备。 */
 export class Application {
   readonly scope = new ResourceScope();
   readonly engine: Engine;
   readonly renderer: ForwardRenderer;
+  readonly textures: TextureResources;
 
   private constructor(engine: Engine) {
     this.engine = this.scope.own(engine);
-    this.renderer = this.scope.own(new ForwardRenderer(engine));
-    const resize = () => engine.resize();
-    window.addEventListener("resize", resize);
-    this.scope.defer(() => window.removeEventListener("resize", resize));
-    engine.resize();
+    try {
+      this.textures = this.scope.own(new TextureResources(engine.device!));
+      this.renderer = this.scope.own(new ForwardRenderer(engine, this.textures));
+      const resize = () => engine.resize();
+      window.addEventListener("resize", resize);
+      this.scope.defer(() => window.removeEventListener("resize", resize));
+      engine.resize();
+    } catch (error) {
+      this.scope.destroy();
+      throw error;
+    }
   }
 
   static async create(canvas: HTMLCanvasElement): Promise<Application> {

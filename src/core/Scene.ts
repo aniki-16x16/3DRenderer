@@ -1,11 +1,14 @@
 import { Object3D } from "./Object3D";
 import { Camera } from "./Camera";
 import { Light } from "./Light";
+import type { Texture } from "../graphics/Texture";
 
 export class Scene {
   objects: Object3D[] = [];
   lights: Light[] = [];
   activeCamera: Camera | null = null;
+  /** 借用原始环境纹理；这里只保存引用，尚未接入背景或 IBL 采样。 */
+  environment: Texture | null = null;
 
   add(object: Object3D): Scene;
   add(light: Light): Scene;

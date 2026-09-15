@@ -1,112 +1,56 @@
-export type TextureColorSpace = "linear" | "srgb";
-export type ImageTextureFormat = "rgba8unorm" | "rgba8unorm-srgb";
+import { ResourceScope } from "../foundation/ResourceScope";
 
-export interface TextureOptions {
-  colorSpace?: TextureColorSpace;
-  format?: ImageTextureFormat;
-}
-
+/** 一次 GPU 分配；通过 TextureResources 创建并管理，使用者只借用。 */
 export class Texture {
-  texture: GPUTexture | null = null;
-  view: GPUTextureView | null = null;
+  readonly texture: GPUTexture;
+  readonly view: GPUTextureView;
+  private disposed = false;
 
-  label: string;
-  readonly colorSpace: TextureColorSpace;
-  readonly format: ImageTextureFormat;
+  readonly device: GPUDevice;
 
-  constructor(label: string = "Texture", options: TextureOptions = {}) {
-    this.label = label;
-    this.format =
-      options.format ?? (options.colorSpace === "srgb" ? "rgba8unorm-srgb" : "rgba8unorm");
-    const formatColorSpace = this.format.endsWith("-srgb") ? "srgb" : "linear";
-    if (options.colorSpace && options.colorSpace !== formatColorSpace) {
-      throw new Error(
-        `Texture format ${this.format} conflicts with ${options.colorSpace} color space.`,
-      );
-    }
-    this.colorSpace = formatColorSpace;
+  static createOwned(scope: ResourceScope, device: GPUDevice, descriptor: GPUTextureDescriptor) {
+    if (scope.destroyed) throw new Error("Texture owner has been destroyed");
+    return scope.own(new Texture(device, descriptor));
   }
 
-  initialize(device: GPUDevice, color: [number, number, number, number] = [255, 0, 255, 255]) {
-    this.destroy();
-    this.texture = device.createTexture({
-      label: this.label,
-      size: [1, 1], // 初始大小为 1x1，稍后会更新
-      format: this.format,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-    });
-    device.queue.writeTexture(
-      { texture: this.texture },
-      new Uint8Array(color), // 默认填充为纯品红色，表示纹理未加载
-      { bytesPerRow: 4 },
-      [1, 1],
-    );
-    this.view = this.texture.createView();
-  }
-
-  /**
-   * 异步加载纹理资源到 GPU
-   */
-  async load(device: GPUDevice, url: string) {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to load texture: ${url} (${response.status})`);
-    }
-    const blob = await response.blob();
-    // 使用 createImageBitmap 是 WebGPU 推荐的方式，它比 Image 元素更高效
-    const source = await createImageBitmap(blob);
-
-    this.destroy();
+  private constructor(device: GPUDevice, descriptor: GPUTextureDescriptor) {
+    this.device = device;
+    this.texture = device.createTexture(descriptor);
     try {
-      this.texture = device.createTexture({
-        label: this.label,
-        size: [source.width, source.height],
-        format: this.format,
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-      device.queue.copyExternalImageToTexture({ source }, { texture: this.texture }, [
-        source.width,
-        source.height,
-      ]);
-    } finally {
-      source.close();
+      this.view = this.texture.createView();
+    } catch (error) {
+      this.texture.destroy();
+      throw error;
     }
-
-    this.view = this.texture.createView();
   }
 
+  get destroyed() {
+    return this.disposed;
+  }
+  get width() {
+    return this.texture.width;
+  }
+  get height() {
+    return this.texture.height;
+  }
+  get format() {
+    return this.texture.format;
+  }
+
+  assertUsable(device: GPUDevice) {
+    if (this.disposed) throw new Error("Texture has been destroyed");
+    if (this.device !== device) throw new Error("Texture belongs to another GPUDevice");
+  }
+
+  createView(descriptor?: GPUTextureViewDescriptor) {
+    this.assertUsable(this.device);
+    return this.texture.createView(descriptor);
+  }
+
+  /** 由所有者调用；销毁后不可重新初始化。 */
   destroy() {
-    this.texture?.destroy();
-    this.texture = null;
-    this.view = null;
+    if (this.disposed) return;
+    this.disposed = true;
+    this.texture.destroy();
   }
-}
-
-const samplers = new WeakMap<GPUDevice, { linear: GPUSampler; comparison: GPUSampler }>();
-export function getSamplers(device: GPUDevice) {
-  let cached = samplers.get(device);
-  if (!cached) {
-    cached = {
-      linear: device.createSampler({
-        label: "LinearSampler",
-        magFilter: "linear",
-        minFilter: "linear",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-      }),
-      comparison: device.createSampler({
-        label: "ComparisonSampler",
-        compare: "less",
-        minFilter: "linear",
-        magFilter: "linear",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-      }),
-    };
-    samplers.set(device, cached);
-  }
-  return cached;
 }

@@ -1,4 +1,5 @@
 import { resourceLabel } from "../foundation/ResourceLabels";
+import type { TextureResources } from "./TextureResources";
 import { getResourceCache, resourceKeys } from "./ResourceCache";
 import { Shader } from "./Shader";
 import { StandardLayouts } from "./StandardLayouts";
@@ -49,6 +50,9 @@ export class Material {
     this.label = label;
     this._ID = Material.generateId();
   }
+
+  /** 渲染前解析借用资源；子类可在引用变化时刷新绑定，不接管资源所有权。 */
+  prepareResources(_device: GPUDevice, _textures: TextureResources): void {}
 
   /**
    * 初始化

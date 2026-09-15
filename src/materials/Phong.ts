@@ -3,8 +3,7 @@ import { Material } from "../graphics/Material";
 import type { Shader } from "../graphics/Shader";
 import type { Texture } from "../graphics/Texture";
 import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
-import { getNormalTexture } from "../textures/normal";
-import { getWhiteTexture } from "../textures/white";
+import type { TextureResources } from "../graphics/TextureResources";
 
 interface Props {
   label?: string;
@@ -23,6 +22,27 @@ export class PhongMaterial extends Material {
   uniformBuffer: GPUBuffer | null = null;
   texture: Texture | null = null;
   normalTexture: Texture | null = null;
+  private colorView?: GPUTextureView;
+  private normalView?: GPUTextureView;
+
+  override prepareResources(device: GPUDevice, textures: TextureResources) {
+    const color = this.texture ?? textures.white;
+    const normal = this.normalTexture ?? textures.normal;
+    color.assertUsable(device);
+    normal.assertUsable(device);
+    if (this.colorView === color.view && this.normalView === normal.view) return;
+    const previousColor = this.colorView;
+    const previousNormal = this.normalView;
+    this.colorView = color.view;
+    this.normalView = normal.view;
+    try {
+      if (this.bindGroup) this.createBindGroup(device);
+    } catch (error) {
+      this.colorView = previousColor;
+      this.normalView = previousNormal;
+      throw error;
+    }
+  }
 
   constructor(props: Props) {
     super(props.label ?? "PhongMaterial");
@@ -73,6 +93,8 @@ export class PhongMaterial extends Material {
   }
 
   protected createBindGroup(device: GPUDevice) {
+    if (!this.colorView || !this.normalView)
+      throw new Error("Prepare material resources before initialization");
     this.bindGroup = device.createBindGroup({
       label: this.resourceLabel("bind-group"),
       layout: this.bindGroupLayout!,
@@ -83,11 +105,11 @@ export class PhongMaterial extends Material {
         },
         {
           binding: 1,
-          resource: (this.texture ?? getWhiteTexture(device)).view!,
+          resource: this.colorView,
         },
         {
           binding: 2,
-          resource: (this.normalTexture ?? getNormalTexture(device)).view!,
+          resource: this.normalView,
         },
       ],
     });
@@ -98,6 +120,8 @@ export class PhongMaterial extends Material {
   }
 
   override destroy() {
+    this.colorView = undefined;
+    this.normalView = undefined;
     this.uniformBuffer?.destroy();
     this.uniformBuffer = null;
     super.destroy();
