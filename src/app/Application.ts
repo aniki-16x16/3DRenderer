@@ -10,6 +10,11 @@ export class Application {
   readonly engine: Engine;
   readonly renderer: ForwardRenderer;
   readonly textures: TextureResources;
+  private scene: Scene | null = null;
+
+  get activeScene(): Scene | null {
+    return this.scene;
+  }
 
   private constructor(engine: Engine) {
     this.engine = this.scope.own(engine);
@@ -37,25 +42,54 @@ export class Application {
     }
   }
 
-  start(scene: Scene) {
+  async start(scene: Scene): Promise<void> {
     if (this.scope.destroyed) throw new Error("Application has been destroyed");
-    this.engine.onResize = (width, height) => {
-      if (scene.activeCamera) scene.activeCamera.aspect = width / height;
-    };
-    this.engine.resize();
-    this.engine.onRender = () => {
-      try {
-        this.renderer.render(scene);
-      } catch (error) {
-        this.destroy();
-        throw error;
-      }
-    };
-    this.engine.start();
+    if (this.scene)
+      throw new Error("Application already has a scene; runtime switching is not supported");
+    if (scene.state !== "new") throw new Error("Start requires a new scene instance");
+    this.scene = this.scope.own(scene);
+    try {
+      await scene.initialize({
+        canvas: this.engine.canvas,
+        textures: this.textures,
+        setExposure: (value) => this.renderer.setExposure(value),
+      });
+      if (this.scope.destroyed)
+        throw new DOMException("Application was destroyed during scene setup", "AbortError");
+      this.engine.onResize = (width, height) => {
+        if (scene.activeCamera) scene.activeCamera.aspect = width / height;
+      };
+      this.engine.resize();
+      this.engine.onUpdate = (delta, elapsed) => {
+        try {
+          if (scene.state !== "ready") throw new Error("Active scene is not ready");
+          scene.update(delta, elapsed);
+        } catch (error) {
+          this.destroy();
+          throw error;
+        }
+      };
+      this.engine.onRender = () => {
+        try {
+          this.renderer.render(scene);
+        } catch (error) {
+          this.destroy();
+          throw error;
+        }
+      };
+      this.engine.start();
+    } catch (error) {
+      this.destroy();
+      throw error;
+    }
   }
 
   destroy() {
     this.engine.stop();
-    this.scope.destroy();
+    try {
+      this.scope.destroy();
+    } finally {
+      this.scene = null;
+    }
   }
 }

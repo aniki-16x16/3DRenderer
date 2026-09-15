@@ -5,9 +5,11 @@ export class OBJLoader {
    * 加载并解析 OBJ 文件
    * @param url obj 文件的路径
    */
-  async load(url: string): Promise<Mesh> {
-    const response = await fetch(url);
+  async load(url: string, signal?: AbortSignal): Promise<Mesh> {
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`Failed to load OBJ: ${url} (${response.status})`);
     const text = await response.text();
+    signal?.throwIfAborted();
     return this.parse(text);
   }
 

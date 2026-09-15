@@ -20,6 +20,7 @@ import { StandardLayouts } from "../src/graphics/StandardLayouts.ts";
 import { Engine } from "../src/core/Engine.ts";
 import { TextureResources } from "../src/graphics/TextureResources.ts";
 import { PhongMaterial } from "../src/materials/Phong.ts";
+import { Application } from "../src/app/Application.ts";
 
 test("scope deduplicates, disposes in reverse order and continues after failure", () => {
   const scope = new ResourceScope(),
@@ -144,6 +145,75 @@ function fixture() {
   };
   return { engine, device, buffers, textures, writes };
 }
+
+function appFixture(t) {
+  const f = fixture();
+  const previousWindow = globalThis.window;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  t.after(() => { globalThis.window = previousWindow; });
+  f.engine.resize = () => f.engine.onResize?.(100, 100);
+  f.engine.stop = () => {};
+  f.engine.destroy = () => { f.engine.dead = true; };
+  f.engine.start = () => { f.engine.started = true; };
+  return { ...f, app: new Application(f.engine) };
+}
+
+test("application waits for setup, forwards frames, and rejects a second scene", async t => {
+  const { app, engine } = appFixture(t);
+  let resume, cleanup = 0;
+  class Demo extends Scene {
+    async setup() {
+      this.scope.defer(() => cleanup++);
+      this.activeCamera = new Camera();
+      await new Promise(resolve => { resume = resolve; });
+    }
+    update(delta, elapsed) { this.frame = [delta, elapsed]; }
+  }
+  const scene = new Demo();
+  const starting = app.start(scene);
+  assert.equal(engine.started, undefined);
+  assert.equal(app.activeScene, scene);
+  const other = new Scene();
+  await assert.rejects(app.start(other), /already has a scene/);
+  assert.equal(other.state, "new");
+  resume();
+  await starting;
+  assert.equal(engine.started, true);
+  engine.onUpdate(0.1, 2);
+  assert.deepEqual(scene.frame, [0.1, 2]);
+  assert.equal(scene.activeCamera.aspect, 1);
+  app.destroy();
+  app.destroy();
+  assert.equal(cleanup, 1);
+  assert.equal(scene.state, "destroyed");
+  assert.equal(app.activeScene, null);
+});
+
+test("application shutdown during setup never starts a frame loop", async t => {
+  const { app, engine } = appFixture(t);
+  let resume;
+  class Slow extends Scene {
+    async setup() { await new Promise(resolve => { resume = resolve; }); }
+  }
+  const scene = new Slow();
+  const starting = app.start(scene);
+  app.destroy();
+  resume();
+  await assert.rejects(starting, { name: "AbortError" });
+  assert.equal(engine.started, undefined);
+  assert.equal(scene.state, "destroyed");
+});
+
+test("application cleans up scene and GPU resources when update throws", async t => {
+  const { app, engine, textures, buffers } = appFixture(t);
+  class Broken extends Scene { update() { throw Error("update failed"); } }
+  const scene = new Broken();
+  await app.start(scene);
+  assert.throws(() => engine.onUpdate(1, 1), /update failed/);
+  assert.equal(scene.state, "destroyed");
+  assert.equal(engine.dead, true);
+  assert.ok([...textures, ...buffers].every(r => r.destroyed === 1));
+});
 
 test("renderer grows lights, uploads actual count after shrink and handles zero", () => {
   const f = fixture(),

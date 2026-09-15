@@ -7,6 +7,7 @@ import { PBRMaterial } from "../src/materials/PBR";
 import { PhongMaterial } from "../src/materials/Phong";
 import { SolidColorMaterial } from "../src/materials/SolidColor";
 import { OBJLoader } from "../src/loader/OBJLoader";
+import { PBRScene } from "../src/scenes/PBRScene";
 
 async function run() {
   const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
@@ -85,6 +86,30 @@ async function run() {
     app.destroy();
   }
   results.push("重复销毁通过");
+  const sceneApp = await Application.create(canvas);
+  const sceneDevice = sceneApp.engine.device!;
+  const demo = new PBRScene();
+  try {
+    sceneDevice.pushErrorScope("validation");
+    await sceneApp.start(demo);
+    if (demo.objects.length !== 11 || demo.lights.length !== 1 || !demo.activeCamera)
+      throw new Error("PBR scene content was not preserved");
+    if (!document.querySelector(".lil-gui")) throw new Error("Scene GUI is missing");
+    await sceneDevice.queue.onSubmittedWorkDone();
+    const sceneError = await sceneDevice.popErrorScope();
+    if (sceneError) throw new Error(sceneError.message);
+    const camera = demo.activeCamera;
+    sceneApp.destroy();
+    if (document.querySelector(".lil-gui")) throw new Error("Scene GUI was not disposed");
+    const position = Array.from(camera.position);
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, cancelable: true }));
+    if (Array.from(camera.position).some((v, i) => v !== position[i]))
+      throw new Error("Scene controls were not disposed");
+    if (demo.state !== "destroyed") throw new Error("Scene lifecycle did not finish");
+    results.push("PBRScene 内容保留、启动渲染、GUI 与控制器随场景释放通过");
+  } finally {
+    sceneApp.destroy();
+  }
   document.querySelector("pre")!.textContent = "PASS\n" + results.join("\n");
 }
 run().catch((error) => {
