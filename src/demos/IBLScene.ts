@@ -14,7 +14,7 @@ export class IBLScene extends Scene {
     super("IBL 场景演示");
   }
 
-  private bunny: Object3D | null = null;
+  private sphere: Object3D | null = null;
 
   protected override async setup({ canvas, signal, textures }: SceneContext) {
     const scope = this.scope;
@@ -50,8 +50,8 @@ export class IBLScene extends Scene {
     const outputFolder = gui.addFolder("Output");
     outputFolder.add(this.output, "exposure", 0, 10, 0.1).name("Exposure");
 
-    const [bunnyMesh, planeMesh, environmentTexture] = await Promise.all([
-      new OBJLoader().load("/assets/obj/bunny_10k.obj", signal),
+    const [sphereMesh, planeMesh, environmentTexture] = await Promise.all([
+      new OBJLoader().load("/assets/obj/icosphere.obj", signal),
       new OBJLoader().load("/assets/obj/plane.obj", signal),
       textures.loadImage("/assets/texture/panorama.jpg", { colorSpace: "srgb" }, signal),
     ]);
@@ -67,9 +67,10 @@ export class IBLScene extends Scene {
     materialFolder.add(material, "metallic", 0, 1, 0.1);
     materialFolder.add(material, "roughness", 0, 1, 0.01);
 
-    const bunny = new Object3D("bunny", bunnyMesh, material);
-    this.bunny = bunny;
-    this.add(bunny);
+    const sphere = new Object3D("sphere", sphereMesh, material);
+    sphere.transform.position = vec3.create(0, 1, 0);
+    this.sphere = sphere;
+    this.add(sphere);
 
     signal.throwIfAborted();
     const planeMaterial = new PBRMaterial({
@@ -84,6 +85,6 @@ export class IBLScene extends Scene {
   }
 
   update(_deltaSeconds: number, _elapsedSeconds: number): void {
-    this.bunny!.transform.rotation = vec3.create(0, -_elapsedSeconds * 0.1, 0);
+    this.sphere!.transform.rotation = vec3.create(0, -_elapsedSeconds * 0.1, 0);
   }
 }
