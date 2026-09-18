@@ -4,7 +4,7 @@
 
 - `Application.textures` 拥有文件纹理与默认白色、法线纹理，关闭应用时统一释放。
 - `Scene.environment`、材质与预览只借用纹理。删除场景物体、销毁材质或 `releaseUnused(scene)` 不释放资产纹理。
-- Renderer 的 HDR、深度、阴影目标继续由 Renderer 的作用域管理。
+- Renderer 通过 FrameTargets 管理 HDR 和主深度附件，通过 ShadowPass 管理阴影目标；这些模块随 Renderer 统一销毁。
 - 独立 `new ForwardRenderer(engine)` 会创建自己的 `renderer.textures`；传入纹理集合时只借用它。集合必须来自同一个 GPUDevice。
 - 不进行自动引用计数。默认将资产保留至应用结束；提前释放前，调用者必须解除所有引用并刷新相关绑定。
 
@@ -19,7 +19,7 @@ scene.environment = texture;
 
 这里仅设置场景引用。根据图片实际编码选择 `linear` 或 `srgb`；颜色贴图通常使用 `srgb`，数据贴图使用 `linear`。
 
-`loadImage` 面向浏览器可解码的普通图片，不是 Radiance HDR / EXR 解码器。`loader/ImageLoader.ts` 只下载、解码，返回的 ImageBitmap 由调用者关闭。资产集合的 `loadImage` 已负责关闭；`fromImage` 借用外部图片，不会关闭它。
+`loadImage` 面向浏览器可解码的普通图片，不是 Radiance HDR / EXR 解码器。`src/assets/loaders/ImageLoader.ts` 只下载、解码，返回的 ImageBitmap 由调用者关闭。资产集合的 `loadImage` 已负责关闭；`fromImage` 借用外部图片，不会关闭它。
 
 与旧 API 的区别：不再 `new Texture().initialize()/load()`，而是由资产集合返回一张已经分配的新资源；没有内部替换或销毁后重新初始化。
 

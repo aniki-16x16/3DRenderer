@@ -1,9 +1,8 @@
-import { Engine } from "../core/Engine";
-import { ResourceScope } from "../foundation/ResourceScope";
+import { Engine } from "./Engine";
+import { ResourceScope } from "../utils/ResourceScope";
 import { ForwardRenderer } from "../renderer/ForwardRenderer";
-import type { Scene } from "../core/Scene";
-import { TextureResources } from "../graphics/TextureResources";
-import type { FrameRateMonitor } from "./FrameRateMonitor";
+import type { Scene } from "../scene/Scene";
+import { TextureResources } from "../assets/TextureResources";
 
 /** 一个 canvas/device 的生命周期入口。场景对象在首次渲染时自动准备。 */
 export class Application {
@@ -35,7 +34,7 @@ export class Application {
   static async create(canvas: HTMLCanvasElement): Promise<Application> {
     const engine = new Engine(canvas);
     try {
-      await engine.init();
+      await engine.initialize();
       return new Application(engine);
     } catch (error) {
       engine.destroy();
@@ -43,7 +42,8 @@ export class Application {
     }
   }
 
-  async start(scene: Scene, frameRateMonitor?: FrameRateMonitor): Promise<void> {
+  /** onFrame 在每次渲染调用后执行，供入口连接 FPS 等调试工具；时间单位为秒。 */
+  async start(scene: Scene, onFrame?: (elapsedSeconds: number) => void): Promise<void> {
     if (this.scope.destroyed) throw new Error("Application has been destroyed");
     if (this.scene)
       throw new Error("Application already has a scene; runtime switching is not supported");
@@ -64,7 +64,6 @@ export class Application {
         try {
           if (scene.state !== "ready") throw new Error("Active scene is not ready");
           scene.update(delta, elapsed);
-          frameRateMonitor?.recordFrame(elapsed * 1000);
         } catch (error) {
           this.destroy();
           throw error;
@@ -73,6 +72,7 @@ export class Application {
       this.engine.onRender = () => {
         try {
           this.renderer.render(scene);
+          onFrame?.(this.engine.elapsedSeconds);
         } catch (error) {
           this.destroy();
           throw error;

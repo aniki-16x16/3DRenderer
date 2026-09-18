@@ -1,13 +1,13 @@
-import { lightLayout } from "../graphics/BufferLayouts";
+import { lightLayout } from "../renderer/layouts/BufferLayouts";
 import { vec3 } from "wgpu-matrix";
 import { Camera } from "./Camera";
-import { Light, LightTypeEnum } from "./Light";
+import { Light, LightType } from "./Light";
 
-export class ParallelLight extends Light {
-  protected type = LightTypeEnum.Parallel;
+export class DirectionalLight extends Light {
+  protected type = LightType.Directional;
   target = vec3.create(0, 0, 0);
 
-  constructor(color = [1, 1, 1], intensity = 1, name = "ParallelLight") {
+  constructor(color = [1, 1, 1], intensity = 1, name = "DirectionalLight") {
     super(name, new Float32Array(color), intensity);
     this.shadowCamera = new Camera();
     this.shadowCamera.type = "orthographic";
@@ -19,8 +19,8 @@ export class ParallelLight extends Light {
     vec3.copy(this.target, this.shadowCamera!.target);
   }
 
-  override packData(): ArrayBuffer {
-    const buffer = super.packData();
+  override packGpuData(): ArrayBuffer {
+    const buffer = super.packGpuData();
 
     lightLayout.write(buffer, {
       direction: vec3.normalize(vec3.subtract(this.target, this.transform.position)),

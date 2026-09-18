@@ -1,6 +1,6 @@
 # 代码场景
 
-当前场景以 TypeScript 类保存。`src/scenes/PBRScene.ts` 保存原有的十只 PBR 兔子、地面、灯光、相机、OrbitControls 及 Camera/Output GUI。每次创建场景实例使用独立内容和参数。
+当前场景以 TypeScript 类保存。`src/demos/PBRScene.ts` 保存原有的十只 PBR 兔子、地面、灯光、相机、OrbitControls 及 Camera/Output GUI。每次创建场景实例使用独立内容和参数。
 
 ## 启动入口
 
@@ -19,7 +19,9 @@ await app.start(new PBRScene());
 
 ```ts
 export class MyScene extends Scene {
-  constructor() { super("我的场景"); }
+  constructor() {
+    super("我的场景");
+  }
 
   protected override async setup(context: SceneContext) {
     const gui = this.scope.own(new GUI({ title: this.name }));
@@ -48,7 +50,6 @@ setup 内的异步操作应传入 signal（OBJLoader 已支持）。自定义加
 ## 验证
 
 `npm test` 验证初始化、失败、加载中关闭、重复启动和资源释放。`/tests/browser.html` 验证原有 GPU 回归以及 PBRScene 的内容、渲染、GUI 和控制器清理。
-
 
 ## GUI 参数绑定
 

@@ -1,9 +1,9 @@
-import { resourceLabel } from "../foundation/ResourceLabels";
-import type { TextureResources } from "./TextureResources";
-import { getResourceCache, resourceKeys } from "./ResourceCache";
-import { Shader } from "./Shader";
-import { StandardLayouts } from "./StandardLayouts";
-import { positionOnlyVertexBufferLayouts } from "./StandardVertexLayout";
+import { resourceLabel } from "../gpu/ResourceLabels";
+import type { TextureResources } from "../assets/TextureResources";
+import { getPipelineCache, pipelineKeys } from "../gpu/PipelineCache";
+import { Shader } from "../gpu/Shader";
+import { BindGroupLayouts } from "../renderer/layouts/BindGroupLayouts";
+import { positionOnlyVertexBufferLayouts } from "../renderer/layouts/VertexLayouts";
 
 /**
  * 材质基类
@@ -15,22 +15,17 @@ import { positionOnlyVertexBufferLayouts } from "./StandardVertexLayout";
  * Group 2: Model Level (Model) - 由 Renderer 提供 Layout
  */
 export class Material {
-  static _idCounter = 1;
-  static generateId() {
-    return Material._idCounter++;
+  private static nextId = 1;
+  readonly id = Material.nextId++;
+  /** 默认源码由具体材质声明；也可在首次绘制前由 SceneResources 覆盖。 */
+  readonly shaderSource: string | undefined = undefined;
+
+  protected materialKind = "Base";
+  get kind() {
+    return this.materialKind;
   }
 
-  protected _TAG = "Base";
-  get TAG() {
-    return this._TAG;
-  }
-
-  private _ID: number = 0;
-  get ID() {
-    return this._ID;
-  }
-
-  protected _enableFragment = true;
+  protected enableFragment = true;
 
   pipeline: GPURenderPipeline | null = null;
   label: string;
@@ -48,7 +43,6 @@ export class Material {
 
   constructor(label = "Material") {
     this.label = label;
-    this._ID = Material.generateId();
   }
 
   /** 渲染前解析借用资源；子类可在引用变化时刷新绑定，不接管资源所有权。 */
@@ -69,8 +63,8 @@ export class Material {
     device: GPUDevice,
     format: GPUTextureFormat,
     shader: Shader,
-    sceneLayout: GPUBindGroupLayout = StandardLayouts.forDevice(device).sceneBindGroupLayout,
-    modelLayout: GPUBindGroupLayout = StandardLayouts.forDevice(device).modelBindGroupLayout,
+    sceneLayout: GPUBindGroupLayout = BindGroupLayouts.forDevice(device).sceneBindGroupLayout,
+    modelLayout: GPUBindGroupLayout = BindGroupLayouts.forDevice(device).modelBindGroupLayout,
   ) {
     this.bindGroupLayout ??= this.getMaterialLayout(device, []);
     const pipelineLayout = this.getPipelineLayout(device, sceneLayout, modelLayout);
@@ -80,44 +74,62 @@ export class Material {
 
   /** 子类只声明布局内容，缓存规则集中在这里。 */
   protected getMaterialLayout(device: GPUDevice, entries: GPUBindGroupLayoutEntry[]) {
-    return getResourceCache(device).bindGroupLayout(
-      resourceKeys.materialLayout(this._TAG),
-      () => device.createBindGroupLayout({
-        label: this.resourceLabel("bind-group-layout"),
-        entries,
-      }),
+    return getPipelineCache(device).bindGroupLayout(
+      pipelineKeys.materialLayout(this.materialKind),
+      () =>
+        device.createBindGroupLayout({
+          label: this.resourceLabel("bind-group-layout"),
+          entries,
+        }),
     );
   }
 
-  private getPipelineLayout(device: GPUDevice, scene: GPUBindGroupLayout, model: GPUBindGroupLayout) {
-    const cache = getResourceCache(device);
+  private getPipelineLayout(
+    device: GPUDevice,
+    scene: GPUBindGroupLayout,
+    model: GPUBindGroupLayout,
+  ) {
+    const cache = getPipelineCache(device);
     const layouts = [scene, this.bindGroupLayout!, model];
     return cache.pipelineLayout(
-      resourceKeys.pipelineLayout(layouts.map(layout => cache.getResourceId(layout))),
-      () => device.createPipelineLayout({
-        label: this.resourceLabel("pipeline-layout"),
-        bindGroupLayouts: layouts,
-      }),
+      pipelineKeys.pipelineLayout(layouts.map((layout) => cache.getResourceId(layout))),
+      () =>
+        device.createPipelineLayout({
+          label: this.resourceLabel("pipeline-layout"),
+          bindGroupLayouts: layouts,
+        }),
     );
   }
 
-  private getPipeline(device: GPUDevice, format: GPUTextureFormat, shader: Shader, pipelineLayout: GPUPipelineLayout) {
-    const resourceCache = getResourceCache(device);
+  private getPipeline(
+    device: GPUDevice,
+    format: GPUTextureFormat,
+    shader: Shader,
+    pipelineLayout: GPUPipelineLayout,
+  ) {
+    const resourceCache = getPipelineCache(device);
     const vertexBufferLayouts = this.getVertexBufferLayouts();
     const depthStencil = this.getDepthStencilConfig();
-    const pipelineKey = resourceKeys.renderPipeline({
-      tag: this._TAG,
-      shaderId: shader.ID,
+    const pipelineKey = pipelineKeys.renderPipeline({
+      tag: this.materialKind,
+      shaderId: shader.id,
       format,
       pipelineLayout: resourceCache.getResourceId(pipelineLayout),
-      enableFragment: this._enableFragment,
+      enableFragment: this.enableFragment,
       topology: this.topology,
       cullMode: this.cullMode,
       vertexBufferLayouts,
       depthStencil,
     });
     return resourceCache.renderPipeline(pipelineKey, () =>
-      this.createPipeline(device, format, shader, pipelineLayout, vertexBufferLayouts, depthStencil),
+      this.createPipeline(
+        device,
+        format,
+        shader,
+        pipelineLayout,
+        vertexBufferLayouts,
+        depthStencil,
+      ),
     );
   }
 
@@ -137,30 +149,30 @@ export class Material {
         entryPoint: "vs_main",
         buffers: vertexBufferLayouts,
       },
-      ...(this._enableFragment
+      ...(this.enableFragment
         ? {
-          fragment: {
-            module: shader.module,
-            entryPoint: "fs_main",
-            targets: [
-              {
-                format: format,
-                blend: {
-                  color: {
-                    srcFactor: "src-alpha",
-                    dstFactor: "one-minus-src-alpha",
-                    operation: "add",
-                  },
-                  alpha: {
-                    srcFactor: "one",
-                    dstFactor: "one-minus-src-alpha",
-                    operation: "add",
+            fragment: {
+              module: shader.module,
+              entryPoint: "fs_main",
+              targets: [
+                {
+                  format: format,
+                  blend: {
+                    color: {
+                      srcFactor: "src-alpha",
+                      dstFactor: "one-minus-src-alpha",
+                      operation: "add",
+                    },
+                    alpha: {
+                      srcFactor: "one",
+                      dstFactor: "one-minus-src-alpha",
+                      operation: "add",
+                    },
                   },
                 },
-              },
-            ],
-          },
-        }
+              ],
+            },
+          }
         : {}),
       primitive: {
         topology: this.topology,

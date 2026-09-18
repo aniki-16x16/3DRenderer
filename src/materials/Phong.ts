@@ -1,24 +1,26 @@
-import { UniformSync } from "../graphics/UniformSync";
-import { phongLayout } from "../graphics/BufferLayouts";
-import { Material } from "../graphics/Material";
-import type { Shader } from "../graphics/Shader";
-import type { Texture } from "../graphics/Texture";
-import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
-import type { TextureResources } from "../graphics/TextureResources";
+import { UniformSync } from "../gpu/UniformSync";
+import { phongLayout } from "../renderer/layouts/BufferLayouts";
+import { Material } from "./Material";
+import shaderSource from "./phong.wgsl?raw";
+import type { Shader } from "../gpu/Shader";
+import type { Texture } from "../assets/Texture";
+import { vertexBufferLayouts } from "../renderer/layouts/VertexLayouts";
+import type { TextureResources } from "../assets/TextureResources";
 
 interface Props {
   label?: string;
   color: [number, number, number];
-  specColor?: [number, number, number];
+  specularColor?: [number, number, number];
   shininess?: number;
   texture?: Texture;
   normalTexture?: Texture;
 }
 export class PhongMaterial extends Material {
-  protected _TAG: string = "Phong";
+  override readonly shaderSource = shaderSource;
+  protected materialKind: string = "Phong";
 
   color: Float32Array | null = null;
-  specColor: Float32Array | null = null;
+  specularColor: Float32Array | null = null;
   shininess: number = 32.0;
   uniformBuffer: GPUBuffer | null = null;
   private readonly uniformSync = new UniformSync(phongLayout.byteSize);
@@ -50,7 +52,7 @@ export class PhongMaterial extends Material {
     super(props.label ?? "PhongMaterial");
     const [r, g, b] = props.color;
     this.color = new Float32Array([r, g, b, 1.0]);
-    this.specColor = new Float32Array(props.specColor ?? [1.0, 1.0, 1.0]);
+    this.specularColor = new Float32Array(props.specularColor ?? [1.0, 1.0, 1.0]);
     this.shininess = props.shininess ?? 32.0;
     this.texture = props.texture ?? null;
     this.normalTexture = props.normalTexture ?? null;
@@ -91,7 +93,7 @@ export class PhongMaterial extends Material {
     if (!this.uniformBuffer) throw new Error("Material is not initialized");
     phongLayout.write(this.uniformSync.data, {
       color: this.color!,
-      spec_color: this.specColor!,
+      spec_color: this.specularColor!,
       shininess: this.shininess,
     });
     this.uniformSync.upload(device, this.uniformBuffer);
@@ -120,7 +122,7 @@ export class PhongMaterial extends Material {
   }
 
   protected getVertexBufferLayouts(): GPUVertexBufferLayout[] {
-    return standardVertexBufferLayouts;
+    return vertexBufferLayouts;
   }
 
   override destroy() {

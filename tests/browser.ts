@@ -1,13 +1,13 @@
 import { Application } from "../src/app/Application";
-import { Scene } from "../src/core/Scene";
-import { Camera } from "../src/core/Camera";
-import { Object3D } from "../src/core/Object3D";
-import { ParallelLight } from "../src/core/ParallelLight";
+import { Scene } from "../src/scene/Scene";
+import { Camera } from "../src/scene/Camera";
+import { Object3D } from "../src/scene/Object3D";
+import { DirectionalLight } from "../src/scene/DirectionalLight";
 import { PBRMaterial } from "../src/materials/PBR";
 import { PhongMaterial } from "../src/materials/Phong";
 import { SolidColorMaterial } from "../src/materials/SolidColor";
-import { OBJLoader } from "../src/loader/OBJLoader";
-import { PBRScene } from "../src/scenes/PBRScene";
+import { OBJLoader } from "../src/assets/loaders/OBJLoader";
+import { PBRScene } from "../src/demos/PBRScene";
 
 async function run() {
   const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
@@ -30,14 +30,14 @@ async function run() {
     for (const material of materials) {
       object.material = material;
       for (const count of [0, 1, 3, 1, 0, 5]) {
-        scene.lights = Array.from({ length: count }, () => new ParallelLight());
+        scene.lights = Array.from({ length: count }, () => new DirectionalLight());
         device.pushErrorScope("validation");
         app.renderer.render(scene);
         await device.queue.onSubmittedWorkDone();
         const error = await device.popErrorScope();
-        if (error) throw new Error(`${material.TAG}/${count}: ${error.message}`);
+        if (error) throw new Error(`${material.kind}/${count}: ${error.message}`);
       }
-      results.push(`${material.TAG}: 0 → 1 → 3 → 1 → 0 → 5 光源通过`);
+      results.push(`${material.kind}: 0 → 1 → 3 → 1 → 0 → 5 光源通过`);
       device.pushErrorScope("validation");
       const pipeline = material.pipeline;
       const group = material.bindGroup;
@@ -86,15 +86,18 @@ async function run() {
     const originalGroup = phong.bindGroup;
     phong.texture = replacement;
     app.renderer.render(scene);
-    if (phong.bindGroup === originalGroup) throw new Error("Texture replacement did not refresh binding");
+    if (phong.bindGroup === originalGroup)
+      throw new Error("Texture replacement did not refresh binding");
     scene.remove(object);
     app.renderer.resources.releaseUnused(scene);
-    if (loaded.destroyed || replacement.destroyed) throw new Error("Scene collection destroyed borrowed texture");
+    if (loaded.destroyed || replacement.destroyed)
+      throw new Error("Scene collection destroyed borrowed texture");
     app.renderer.render(scene);
     scene.add(object);
     phong.texture = null;
     app.renderer.render(scene);
     scene.environment = null;
+    app.renderer.render(scene);
     await device.queue.onSubmittedWorkDone();
     app.textures.release(loaded);
     app.textures.release(replacement);

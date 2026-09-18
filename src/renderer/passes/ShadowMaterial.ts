@@ -1,8 +1,10 @@
-import { Material } from "../graphics/Material";
+import { Material } from "../../materials/Material";
+import shaderSource from "./shadow.wgsl?raw";
 
 export class ShadowMaterial extends Material {
-  protected _TAG: string = "Shadow";
-  protected _enableFragment: boolean = false;
+  override readonly shaderSource = shaderSource;
+  protected materialKind: string = "Shadow";
+  protected enableFragment: boolean = false;
 
   constructor(label?: string) {
     super(label ?? "ShadowMaterial");

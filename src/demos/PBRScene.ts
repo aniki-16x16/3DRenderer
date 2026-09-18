@@ -1,12 +1,12 @@
 import { vec3 } from "wgpu-matrix";
 import GUI from "lil-gui";
-import { Scene, type SceneContext } from "../core/Scene";
-import { Object3D } from "../core/Object3D";
-import { Camera } from "../core/Camera";
+import { Scene, type SceneContext } from "../scene/Scene";
+import { Object3D } from "../scene/Object3D";
+import { Camera } from "../scene/Camera";
 import { OrbitControls } from "../controls/OrbitControls";
 import { angle2Rad } from "../utils/math";
-import { OBJLoader } from "../loader/OBJLoader";
-import { ParallelLight } from "../core/ParallelLight";
+import { OBJLoader } from "../assets/loaders/OBJLoader";
+import { DirectionalLight } from "../scene/DirectionalLight";
 import { PBRMaterial } from "../materials/PBR";
 
 /** 当前 PBR 兔子阵列演示：内容、交互和 GUI 一起保存在此代码场景。 */
@@ -22,7 +22,7 @@ export class PBRScene extends Scene {
     camera.target = vec3.create(0, 0.5, 0);
     this.activeCamera = camera;
 
-    const light = new ParallelLight([1, 1, 1], 1);
+    const light = new DirectionalLight([1, 1, 1], 1);
     light.transform.position = vec3.create(1, 2, 2);
     light.target = vec3.create(0, 0.5, 0);
     this.add(light);

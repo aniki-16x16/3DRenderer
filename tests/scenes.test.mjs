@@ -1,19 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Scene } from "../src/core/Scene.ts";
-import { ParallelLight } from "../src/core/ParallelLight.ts";
-import { OBJLoader } from "../src/loader/OBJLoader.ts";
+import { Scene } from "../src/scene/Scene.ts";
+import { DirectionalLight } from "../src/scene/DirectionalLight.ts";
+import { OBJLoader } from "../src/assets/loaders/OBJLoader.ts";
 
 test("scene setup runs once and owns auxiliary resources without destroying borrowed assets", async () => {
-  let setups = 0, disposed = 0;
-  const borrowed = { destroy() { throw Error("Borrowed asset was destroyed"); } };
+  let setups = 0,
+    disposed = 0;
+  const borrowed = {
+    destroy() {
+      throw Error("Borrowed asset was destroyed");
+    },
+  };
   class Demo extends Scene {
     setup(context) {
       setups++;
       this.context = context;
-      this.scope.own({ destroy() { disposed++; } });
+      this.scope.own({
+        destroy() {
+          disposed++;
+        },
+      });
       this.environment = borrowed;
-      this.add(new ParallelLight());
+      this.add(new DirectionalLight());
     }
   }
   const scene = new Demo("demo");
@@ -27,16 +36,23 @@ test("scene setup runs once and owns auxiliary resources without destroying borr
   assert.equal(scene.context.signal.aborted, true);
   assert.equal(scene.environment, null);
   assert.deepEqual(scene.lights, []);
-  assert.throws(() => scene.add(new ParallelLight()), /destroyed/);
+  assert.throws(() => scene.add(new DirectionalLight()), /destroyed/);
 });
 
 test("destroy during async setup prevents ready state and disposes late auxiliary resources", async () => {
-  let resume, disposed = 0;
+  let resume,
+    disposed = 0;
   class Slow extends Scene {
     async setup({ signal }) {
       this.signal = signal;
-      await new Promise(resolve => { resume = resolve; });
-      this.scope.own({ destroy() { disposed++; } });
+      await new Promise((resolve) => {
+        resume = resolve;
+      });
+      this.scope.own({
+        destroy() {
+          disposed++;
+        },
+      });
     }
   }
   const scene = new Slow();
@@ -65,14 +81,17 @@ test("setup failure rolls back GUI and controls", async () => {
   assert.equal(scene.state, "destroyed");
 });
 
-test("OBJ download rejects HTTP failures and cancellation before parsing", async t => {
+test("OBJ download rejects HTTP failures and cancellation before parsing", async (t) => {
   const loader = new OBJLoader();
   t.mock.method(globalThis, "fetch", async () => ({ ok: false, status: 404 }));
   await assert.rejects(loader.load("missing.obj"), /404/);
   const controller = new AbortController();
   t.mock.method(globalThis, "fetch", async () => ({
     ok: true,
-    text: async () => { controller.abort(); return ""; },
+    text: async () => {
+      controller.abort();
+      return "";
+    },
   }));
   await assert.rejects(loader.load("cancelled.obj", controller.signal), { name: "AbortError" });
 });

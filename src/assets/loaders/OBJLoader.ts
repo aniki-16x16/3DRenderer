@@ -1,4 +1,4 @@
-import { Mesh } from "../graphics/Mesh";
+import { Mesh } from "../Mesh";
 
 export class OBJLoader {
   /**

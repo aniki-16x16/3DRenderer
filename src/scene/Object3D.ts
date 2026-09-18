@@ -1,7 +1,7 @@
-import { modelLayout } from "../graphics/BufferLayouts";
-import type { Material } from "../graphics/Material";
-import type { Mesh } from "../graphics/Mesh";
-import { StandardLayouts } from "../graphics/StandardLayouts";
+import { modelLayout } from "../renderer/layouts/BufferLayouts";
+import type { Material } from "../materials/Material";
+import type { Mesh } from "../assets/Mesh";
+import { BindGroupLayouts } from "../renderer/layouts/BindGroupLayouts";
 import { Node3D } from "./Node3D";
 
 export class Object3D extends Node3D {
@@ -28,7 +28,7 @@ export class Object3D extends Node3D {
     });
     this.modelBindGroup = device.createBindGroup({
       label: `ModelBindGroup-${this.name}`,
-      layout: StandardLayouts.forDevice(device).modelBindGroupLayout,
+      layout: BindGroupLayouts.forDevice(device).modelBindGroupLayout,
       entries: [
         {
           binding: 0,

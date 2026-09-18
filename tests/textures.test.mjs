@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TextureResources } from "../src/graphics/TextureResources.ts";
+import { TextureResources } from "../src/assets/TextureResources.ts";
 
 globalThis.GPUTextureUsage = { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 };
 globalThis.createImageBitmap = async () => {

@@ -1,4 +1,4 @@
-import { ResourceScope } from "../foundation/ResourceScope";
+import { ResourceScope } from "../utils/ResourceScope";
 
 /** 一次 GPU 分配；通过 TextureResources 创建并管理，使用者只借用。 */
 export class Texture {

@@ -1,8 +1,9 @@
-import { UniformSync } from "../graphics/UniformSync";
-import { pbrLayout } from "../graphics/BufferLayouts";
-import { Material } from "../graphics/Material";
-import type { Shader } from "../graphics/Shader";
-import { standardVertexBufferLayouts } from "../graphics/StandardVertexLayout";
+import { UniformSync } from "../gpu/UniformSync";
+import { pbrLayout } from "../renderer/layouts/BufferLayouts";
+import { Material } from "./Material";
+import shaderSource from "./pbr.wgsl?raw";
+import type { Shader } from "../gpu/Shader";
+import { vertexBufferLayouts } from "../renderer/layouts/VertexLayouts";
 
 interface Props {
   label?: string;
@@ -11,7 +12,8 @@ interface Props {
   roughness: number;
 }
 export class PBRMaterial extends Material {
-  protected _TAG: string = "PBR";
+  override readonly shaderSource = shaderSource;
+  protected materialKind: string = "PBR";
 
   baseColor: Float32Array;
   metallic: number;
@@ -70,7 +72,7 @@ export class PBRMaterial extends Material {
   }
 
   protected getVertexBufferLayouts(): GPUVertexBufferLayout[] {
-    return standardVertexBufferLayouts;
+    return vertexBufferLayouts;
   }
 
   override destroy() {

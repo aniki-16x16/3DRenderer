@@ -2,7 +2,7 @@
  * 标准 Mesh 的 GPU 顶点输入协议。
  * Mesh、Material 与 WGSL 必须共同遵守这些 slot/location 约定。
  */
-export const StandardVertexBufferSlot = {
+export const VertexBufferSlot = {
   Position: 0,
   Normal: 1,
   UV: 2,
@@ -22,7 +22,7 @@ export const positionOnlyVertexBufferLayouts: GPUVertexBufferLayout[] = [
   },
 ];
 
-export const standardVertexBufferLayouts: GPUVertexBufferLayout[] = [
+export const vertexBufferLayouts: GPUVertexBufferLayout[] = [
   ...positionOnlyVertexBufferLayouts,
   {
     arrayStride: 3 * 4,

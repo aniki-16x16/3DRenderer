@@ -1,10 +1,10 @@
-export class StandardLayouts {
-  private static instances = new WeakMap<GPUDevice, StandardLayouts>();
+export class BindGroupLayouts {
+  private static instances = new WeakMap<GPUDevice, BindGroupLayouts>();
 
-  static forDevice(device: GPUDevice): StandardLayouts {
+  static forDevice(device: GPUDevice): BindGroupLayouts {
     let layouts = this.instances.get(device);
     if (!layouts) {
-      layouts = new StandardLayouts(device);
+      layouts = new BindGroupLayouts(device);
       this.instances.set(device, layouts);
     }
     return layouts;
@@ -65,13 +65,13 @@ export class StandardLayouts {
         {
           binding: 7,
           visibility: GPUShaderStage.FRAGMENT,
-          texture: {}
+          texture: {},
         },
         {
           binding: 8,
           visibility: GPUShaderStage.FRAGMENT,
-          sampler: { type: 'filtering' }
-        }
+          sampler: { type: "filtering" },
+        },
       ],
     });
 

@@ -1,5 +1,5 @@
-import { ResourceScope } from "../foundation/ResourceScope";
-import { loadImage } from "../loader/ImageLoader";
+import { ResourceScope } from "../utils/ResourceScope";
+import { loadImage } from "./loaders/ImageLoader";
 import { Texture } from "./Texture";
 
 export interface ImageTextureOptions {
@@ -126,7 +126,11 @@ export class TextureResources {
 
   /** 调用者必须先移除所有使用引用、刷新绑定。默认纹理随集合释放。 */
   release(texture: Texture) {
-    if (texture === this.whiteTexture || texture === this.blackTexture || texture === this.normalTexture)
+    if (
+      texture === this.whiteTexture ||
+      texture === this.blackTexture ||
+      texture === this.normalTexture
+    )
       throw new Error("Default textures are released with TextureResources");
     this.scope.release(texture);
   }

@@ -1,12 +1,12 @@
 import { vec3 } from "wgpu-matrix";
 import GUI from "lil-gui";
-import { Scene, type SceneContext } from "../core/Scene";
-import { Object3D } from "../core/Object3D";
-import { Camera } from "../core/Camera";
+import { Scene, type SceneContext } from "../scene/Scene";
+import { Object3D } from "../scene/Object3D";
+import { Camera } from "../scene/Camera";
 import { OrbitControls } from "../controls/OrbitControls";
 import { angle2Rad } from "../utils/math";
-import { OBJLoader } from "../loader/OBJLoader";
-import { ParallelLight } from "../core/ParallelLight";
+import { OBJLoader } from "../assets/loaders/OBJLoader";
+import { DirectionalLight } from "../scene/DirectionalLight";
 import { PBRMaterial } from "../materials/PBR";
 
 export class IBLScene extends Scene {
@@ -23,7 +23,7 @@ export class IBLScene extends Scene {
     camera.target = vec3.create(0, 0.5, 0);
     this.activeCamera = camera;
 
-    const light = new ParallelLight([1, 1, 1], 1);
+    const light = new DirectionalLight([1, 1, 1], 1);
     light.transform.position = vec3.create(1, 2, 2);
     light.target = vec3.create(0, 0.5, 0);
     this.add(light);
@@ -53,7 +53,7 @@ export class IBLScene extends Scene {
     const [bunnyMesh, planeMesh, environmentTexture] = await Promise.all([
       new OBJLoader().load("/assets/obj/bunny_10k.obj", signal),
       new OBJLoader().load("/assets/obj/plane.obj", signal),
-      textures.loadImage('/assets/texture/panorama.jpg', { colorSpace: 'srgb' }, signal)
+      textures.loadImage("/assets/texture/panorama.jpg", { colorSpace: "srgb" }, signal),
     ]);
     signal.throwIfAborted();
     this.environment = environmentTexture;
@@ -63,11 +63,11 @@ export class IBLScene extends Scene {
       metallic: 1,
       roughness: 0,
     });
-    const materialFolder = gui.addFolder('Material');
+    const materialFolder = gui.addFolder("Material");
     materialFolder.add(material, "metallic", 0, 1, 0.1);
-    materialFolder.add(material, 'roughness', 0, 1, 0.01);
+    materialFolder.add(material, "roughness", 0, 1, 0.01);
 
-    const bunny = new Object3D('bunny', bunnyMesh, material);
+    const bunny = new Object3D("bunny", bunnyMesh, material);
     this.bunny = bunny;
     this.add(bunny);
 

@@ -1,14 +1,9 @@
-import { ResourceScope } from "../foundation/ResourceScope";
-import type { TextureResources } from "../graphics/TextureResources";
-import type { Scene } from "../core/Scene";
-import { Material } from "../graphics/Material";
-import { Shader } from "../graphics/Shader";
-import { PBRMaterial } from "../materials/PBR";
-import { PhongMaterial } from "../materials/Phong";
-import { SolidColorMaterial } from "../materials/SolidColor";
-import pbr from "../shaders/pbr.wgsl?raw";
-import phong from "../shaders/phong.wgsl?raw";
-import solid from "../shaders/solid.wgsl?raw";
+import { ResourceScope } from "../utils/ResourceScope";
+import type { TextureResources } from "../assets/TextureResources";
+import type { Scene } from "../scene/Scene";
+import { Material } from "../materials/Material";
+import { Shader } from "../gpu/Shader";
+import { modelLayout } from "./layouts/BufferLayouts";
 
 const owners = new WeakMap<object, SceneResources>();
 
@@ -18,7 +13,8 @@ export class SceneResources {
   private initialized = new WeakSet<object>();
   private owned = new Set<{ destroy(): void }>();
   private shaders = new Map<string, Shader>();
-  private customShaders = new WeakMap<Material, string>();
+  private shaderOverrides = new WeakMap<Material, string>();
+  private readonly modelData = modelLayout.create();
   private device: GPUDevice;
   private format: GPUTextureFormat;
 
@@ -30,12 +26,13 @@ export class SceneResources {
     this.format = format;
   }
 
-  setShader(material: Material, code: string) {
+  setShaderSource(material: Material, code: string) {
+    if (this.scope.destroyed) throw new Error("SceneResources has been destroyed");
     if (this.initialized.has(material)) throw new Error("Set shader before first render");
-    this.customShaders.set(material, code);
+    this.shaderOverrides.set(material, code);
   }
 
-  private ensure<T extends { destroy(): void }>(resource: T, initialize: () => void) {
+  private ensureInitialized<T extends { destroy(): void }>(resource: T, initialize: () => void) {
     if (this.initialized.has(resource)) return;
     const owner = owners.get(resource);
     if (owner && owner !== this)
@@ -61,19 +58,11 @@ export class SceneResources {
     for (const object of scene.objects) {
       const { mesh, material } = object;
       if (!mesh || !material) continue;
-      this.ensure(mesh, () => mesh.initialize(this.device));
+      this.ensureInitialized(mesh, () => mesh.initialize(this.device));
       if (!preparedMaterials.has(material)) {
         material.prepareResources(this.device, this.textures);
-        this.ensure(material, () => {
-          const code =
-            this.customShaders.get(material) ??
-            (material instanceof PBRMaterial
-              ? pbr
-              : material instanceof PhongMaterial
-                ? phong
-                : material instanceof SolidColorMaterial
-                  ? solid
-                  : undefined);
+        this.ensureInitialized(material, () => {
+          const code = this.shaderOverrides.get(material) ?? material.shaderSource;
           if (code === undefined)
             throw new Error(`Register a shader for ${material.label} before rendering`);
           let shader = this.shaders.get(code);
@@ -86,7 +75,10 @@ export class SceneResources {
         material.syncUniforms(this.device);
         preparedMaterials.add(material);
       }
-      this.ensure(object, () => object.initialize(this.device));
+      this.ensureInitialized(object, () => object.initialize(this.device));
+      // 每对象每帧上传一次，阴影和主场景 Pass 共同读取。
+      modelLayout.write(this.modelData, { matrix: object.transform.getMatrix() });
+      this.device.queue.writeBuffer(object.modelBuffer!, 0, this.modelData);
     }
   }
 

@@ -12,15 +12,15 @@ export class Engine {
   format: GPUTextureFormat | null = null;
 
   // 渲染循环控制
-  private _animationId?: number;
-  private _isRunning: boolean = false;
-  private _lastFrameTime: number = 0;
-  private _startTime?: number;
-  private _elapsedSeconds = 0;
+  private animationId?: number;
+  private running: boolean = false;
+  private lastFrameTime: number = 0;
+  private startTime?: number;
+  private elapsedTime = 0;
 
   /** 当前帧距首次 start 的秒数；停止期间的时间也计入。 */
   get elapsedSeconds(): number {
-    return this._elapsedSeconds;
+    return this.elapsedTime;
   }
 
   // 外部回调
@@ -38,7 +38,7 @@ export class Engine {
   /**
    * 初始化 WebGPU API
    */
-  async init(): Promise<void> {
+  async initialize(): Promise<void> {
     if (!navigator.gpu) {
       throw new Error("WebGPU is not supported in this browser.");
     }
@@ -64,21 +64,21 @@ export class Engine {
    * 启动渲染循环
    */
   start(): void {
-    if (this._isRunning) return;
-    this._isRunning = true;
-    this._lastFrameTime = performance.now();
-    this._startTime ??= this._lastFrameTime;
-    this._run();
+    if (this.running) return;
+    this.running = true;
+    this.lastFrameTime = performance.now();
+    this.startTime ??= this.lastFrameTime;
+    this.tick();
   }
 
   /**
    * 停止渲染循环
    */
   stop(): void {
-    this._isRunning = false;
-    if (this._animationId !== undefined) {
-      cancelAnimationFrame(this._animationId);
-      this._animationId = undefined;
+    this.running = false;
+    if (this.animationId !== undefined) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = undefined;
     }
   }
 
@@ -112,18 +112,18 @@ export class Engine {
   /**
    * 内部循环函数
    */
-  private _run(): void {
-    if (!this._isRunning) return;
+  private tick(): void {
+    if (!this.running) return;
 
     // 计算 deltaTime (可选，建议使用 performance.now())
     const now = performance.now();
-    const deltaTime = (now - this._lastFrameTime) / 1000;
-    this._lastFrameTime = now;
-    this._elapsedSeconds = (now - this._startTime!) / 1000;
+    const deltaTime = (now - this.lastFrameTime) / 1000;
+    this.lastFrameTime = now;
+    this.elapsedTime = (now - this.startTime!) / 1000;
 
     // 逻辑更新
     if (this.onUpdate) {
-      this.onUpdate(deltaTime, this._elapsedSeconds);
+      this.onUpdate(deltaTime, this.elapsedTime);
     }
 
     // 渲染调用
@@ -131,6 +131,6 @@ export class Engine {
       this.onRender();
     }
 
-    if (this._isRunning) this._animationId = requestAnimationFrame(() => this._run());
+    if (this.running) this.animationId = requestAnimationFrame(() => this.tick());
   }
 }

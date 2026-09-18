@@ -1,11 +1,11 @@
 /** 缓存身份使用结构化参数，避免分隔符拼接造成碰撞。 */
-export const resourceKeys = {
+export const pipelineKeys = {
   materialLayout: (tag: string) => JSON.stringify(["material-layout", tag]),
   pipelineLayout: (ids: number[]) => JSON.stringify(["pipeline-layout", ids]),
   renderPipeline: (config: Record<string, unknown>) => JSON.stringify(["render-pipeline", config]),
 };
 
-export class ResourceCache {
+export class PipelineCache {
   private getOrCreate<T>(cache: Map<string, T>, key: string, create: () => T): T {
     const existing = cache.get(key);
     if (existing !== undefined) return existing;
@@ -45,13 +45,13 @@ export class ResourceCache {
   private renderPipelines: Map<string, GPURenderPipeline> = new Map();
 }
 
-const deviceResourceCaches = new WeakMap<GPUDevice, ResourceCache>();
+const devicePipelineCaches = new WeakMap<GPUDevice, PipelineCache>();
 
-export function getResourceCache(device: GPUDevice): ResourceCache {
-  const cached = deviceResourceCaches.get(device);
+export function getPipelineCache(device: GPUDevice): PipelineCache {
+  const cached = devicePipelineCaches.get(device);
   if (cached) return cached;
 
-  const cache = new ResourceCache();
-  deviceResourceCaches.set(device, cache);
+  const cache = new PipelineCache();
+  devicePipelineCaches.set(device, cache);
   return cache;
 }

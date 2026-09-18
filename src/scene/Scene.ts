@@ -1,10 +1,10 @@
 import { Object3D } from "./Object3D";
 import { Camera } from "./Camera";
 import { Light } from "./Light";
-import type { Texture } from "../graphics/Texture";
-import type { TextureResources } from "../graphics/TextureResources";
+import type { Texture } from "../assets/Texture";
+import type { TextureResources } from "../assets/TextureResources";
 import type { OutputSettings } from "./OutputSettings";
-import { ResourceScope } from "../foundation/ResourceScope";
+import { ResourceScope } from "../utils/ResourceScope";
 
 export interface SceneContext {
   readonly canvas: HTMLCanvasElement;
@@ -66,7 +66,7 @@ export class Scene {
   objects: Object3D[] = [];
   lights: Light[] = [];
   activeCamera: Camera | null = null;
-  /** 借用原始环境纹理；这里只保存引用，尚未接入背景或 IBL 采样。 */
+  /** 借用原始环境纹理；具体采样方式由材质 WGSL 决定。 */
   environment: Texture | null = null;
 
   add(object: Object3D): Scene;

@@ -1,4 +1,4 @@
-import { StructLayout } from "../foundation/StructLayout";
+import { StructLayout } from "../../gpu/StructLayout";
 
 // CPU/WGSL 协议集中在此。增加字段时同时更新对应 WGSL 声明。
 export const cameraLayout = new StructLayout({

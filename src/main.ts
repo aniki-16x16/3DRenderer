@@ -1,6 +1,6 @@
 import { Application } from "./app/Application";
-import { FrameRateMonitor } from "./app/FrameRateMonitor";
-import { IBLScene } from "./scenes/IBLScene";
+import { FrameRateMonitor } from "./debug/FrameRateMonitor";
+import { IBLScene } from "./demos/IBLScene";
 import "./style.css";
 
 let disposed = false;
@@ -24,7 +24,9 @@ async function main() {
   app.scope.defer(() => window.removeEventListener("pagehide", cleanup));
   // 启动时选择一个代码场景；场景负责自己的内容与 GUI。
   const frameRateMonitor = app.scope.own(new FrameRateMonitor());
-  await app.start(new IBLScene(), frameRateMonitor);
+  await app.start(new IBLScene(), (elapsedSeconds) =>
+    frameRateMonitor.recordFrame(elapsedSeconds * 1000),
+  );
 }
 
 main().catch((error) => {

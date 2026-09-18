@@ -1,7 +1,8 @@
-import { UniformSync } from "../graphics/UniformSync";
-import { solidColorLayout } from "../graphics/BufferLayouts";
-import { Material } from "../graphics/Material";
-import type { Shader } from "../graphics/Shader";
+import { UniformSync } from "../gpu/UniformSync";
+import { solidColorLayout } from "../renderer/layouts/BufferLayouts";
+import { Material } from "./Material";
+import shaderSource from "./solid.wgsl?raw";
+import type { Shader } from "../gpu/Shader";
 
 interface Props {
   label?: string;
@@ -11,7 +12,8 @@ interface Props {
   a?: number;
 }
 export class SolidColorMaterial extends Material {
-  protected _TAG: string = "SolidColor";
+  override readonly shaderSource = shaderSource;
+  protected materialKind: string = "SolidColor";
 
   color: Float32Array | null = null;
   uniformBuffer: GPUBuffer | null = null;

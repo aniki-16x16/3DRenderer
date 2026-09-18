@@ -1,5 +1,5 @@
 import { vec3 } from "wgpu-matrix";
-import { Camera } from "../core/Camera";
+import { Camera } from "../scene/Camera";
 
 export class OrbitControls {
   camera: Camera;

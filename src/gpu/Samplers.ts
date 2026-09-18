@@ -1,4 +1,7 @@
-const samplers = new WeakMap<GPUDevice, { linear: GPUSampler; comparison: GPUSampler; environment: GPUSampler }>();
+const samplers = new WeakMap<
+  GPUDevice,
+  { linear: GPUSampler; comparison: GPUSampler; environment: GPUSampler }
+>();
 export function getSamplers(device: GPUDevice) {
   let cached = samplers.get(device);
   if (!cached) {
@@ -19,12 +22,12 @@ export function getSamplers(device: GPUDevice) {
         addressModeV: "repeat",
       }),
       environment: device.createSampler({
-        label: 'EnvironmentSampler',
+        label: "EnvironmentSampler",
         magFilter: "linear",
-        minFilter: 'linear',
-        addressModeU: 'repeat',
-        addressModeV: 'clamp-to-edge',
-      })
+        minFilter: "linear",
+        addressModeU: "repeat",
+        addressModeV: "clamp-to-edge",
+      }),
     };
     samplers.set(device, cached);
   }
