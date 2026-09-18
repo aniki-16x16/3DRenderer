@@ -31,3 +31,58 @@ canvas {
   height: 100%;
   display: block;
 }
+
+.frame-rate-monitor {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: min(264px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  background: rgba(13, 19, 29, 0.88);
+  color: #a8b8cc;
+  font:
+    11px/1.4 ui-monospace,
+    Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+}
+
+.frame-rate-monitor__header,
+.frame-rate-monitor__axis {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.frame-rate-monitor__header strong {
+  color: #77e3b5;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.frame-rate-monitor svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 10px 0 4px;
+}
+
+.frame-rate-monitor__grid {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.2);
+  stroke-width: 1;
+}
+
+.frame-rate-monitor__line {
+  fill: none;
+  stroke: #77e3b5;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
