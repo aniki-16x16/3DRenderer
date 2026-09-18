@@ -46,6 +46,8 @@ struct LightData {
 @group(1) @binding(0) var<uniform> material: MaterialUniforms;
 @group(2) @binding(0) var<uniform> model: mat4x4f;
 
+const PI = 3.1415926535897932384626433;
+
 @vertex
 fn vs_main(input: VertextIn) -> VertexOut {
   var output: VertexOut;
@@ -58,7 +60,7 @@ fn vs_main(input: VertextIn) -> VertexOut {
   return output;
 }
 
-const PI = 3.1415926535897932384626433;
+const SAMPLES = 10u;
 
 @fragment
 fn fs_main(input: VertexOut) -> @location(0) vec4f {
@@ -86,12 +88,64 @@ fn fs_main(input: VertexOut) -> @location(0) vec4f {
   // }
   // return vec4f(acc, 1);
   let N = normalize(input.n_world);
-  var u = 0.0;
-  if (abs(N.x) > 0 || abs(N.z) > 0) {
-    u = atan2(N.z, N.x) / PI * 0.5 + 0.5;
+  let A = get_assist_axis(N);
+  let T = normalize(cross(A, N));
+  let B = cross(N, T);
+  var acc = vec3f(0);
+  for (var i: u32 = 0; i < SAMPLES; i += 1) {
+    let pixel = floor(input.position.xy);
+    let u1 = random31(vec3f(pixel, f32(2u * i)));
+    let u2 = random31(vec3f(pixel, f32(2u * i + 1u)));
+    let r = sqrt(u1);
+    let phi = 2.0 * PI * u2;
+    let x = cos(phi) * r;
+    let y = sin(phi) * r;
+    let z = sqrt(1 - u1);
+    let dir_world = x * T + y * B + z * N;
+    var u = 0.0;
+    if (abs(dir_world.x) > 0 || abs(dir_world.z) > 0) {
+      u = atan2(dir_world.z, dir_world.x) / PI * 0.5 + 0.5;
+    }
+    let v = acos(clamp(dir_world.y, -1, 1)) / PI;
+    acc += textureSample(environment_map, environment_sampler, vec2f(u, v)).rgb;
   }
-  let v = acos(clamp(N.y, -1, 1)) / PI;
-  return vec4f(textureSample(environment_map, environment_sampler, vec2f(u, v)).rgb, 1);
+  acc = material.base_color.rgb / f32(SAMPLES) * acc;
+
+  let V = normalize(camera.position - input.world_position);
+  let R = 2.0 * dot(N, V) * N - V;
+  return vec4f(acc, 1);
+}
+
+// 通用整数混合；u32 运算溢出时按模 2^32 回绕。
+fn random_mix_u32(value: u32) -> u32 {
+  var h = value;
+  h = (h ^ (h >> 16u)) * 0x7feb352du;
+  h = (h ^ (h >> 15u)) * 0x846ca68bu;
+  return h ^ (h >> 16u);
+}
+
+// 确定性伪随机哈希：相同种子始终得到相同结果。
+// seed 使用有限浮点数；输出近似均匀分布于 [0, 1)，不用于密码学。
+fn random31(seed: vec3f) -> f32 {
+  let bits = bitcast<vec3u>(seed);
+  var h = random_mix_u32(bits.x ^ 0x9e3779b9u);
+  h = random_mix_u32(h ^ bits.y);
+  h = random_mix_u32(h ^ bits.z);
+  // 只取高 24 位，保证 f32 转换精确且不会舍入到 1。
+  return f32(h >> 8u) * (1.0 / 16777216.0);
+}
+
+fn get_assist_axis(n: vec3f) -> vec3f {
+  let abs_n = abs(n);
+  var result = vec3f(0);
+  if (abs_n.x <= abs_n.y && abs_n.x < abs_n.z) {
+    result = vec3f(1,0,0);
+  } else if (abs_n.y <= abs_n.x && abs_n.y < abs_n.z) {
+    result = vec3f(0,1,0);
+  } else {
+    result = vec3f(0,0,1);
+  }
+  return result;
 }
 
 fn fresnelSchlick(V: vec3f, H: vec3f) -> vec3f {

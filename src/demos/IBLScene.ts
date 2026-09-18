@@ -59,9 +59,9 @@ export class IBLScene extends Scene {
     this.environment = environmentTexture;
 
     const material = new PBRMaterial({
-      baseColor: [0.9, 0.9, 0.9, 1.0],
-      metallic: 1,
-      roughness: 0,
+      baseColor: [1.0, 1.0, 1.0, 1.0],
+      metallic: 0,
+      roughness: 1,
     });
     const materialFolder = gui.addFolder("Material");
     materialFolder.add(material, "metallic", 0, 1, 0.1);
